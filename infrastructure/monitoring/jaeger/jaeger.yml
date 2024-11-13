@@ -1,0 +1,155 @@
+# Human Tasks:
+# 1. Verify Elasticsearch cluster is deployed and accessible at http://elasticsearch:9200
+# 2. Ensure storage class is configured for Elasticsearch persistence
+# 3. Review and adjust sampling strategies based on production load
+# 4. Configure network policies to secure Jaeger components
+# 5. Set up proper authentication for Jaeger UI access
+
+# Jaeger Operator version: 1.41.0
+# Elasticsearch version: 7.17.x
+
+# Addresses requirement: Distributed Tracing
+# Location: 4. SYSTEM ARCHITECTURE/4.4.1 Monitoring and Observability
+# Description: Production-grade Jaeger deployment for distributed tracing across microservices
+apiVersion: jaegertracing.io/v1
+kind: Jaeger
+metadata:
+  name: mca-jaeger
+  namespace: monitoring
+  labels:
+    app: mca-jaeger
+    component: tracing
+spec:
+  strategy: production  # Production deployment strategy with high availability
+
+  # Addresses requirement: Observability
+  # Location: 6. TECHNOLOGY STACK/6.5.4 Monitoring Stack
+  # Description: Elasticsearch backend configuration for trace storage
+  storage:
+    type: elasticsearch
+    options:
+      es.server-urls: http://elasticsearch:9200
+      es.num-shards: 5
+      es.num-replicas: 1
+      # Additional ES optimization settings
+      es.bulk.size: 5000000  # 5MB bulk size
+      es.bulk.workers: 5
+      es.bulk.flush-interval: 200ms
+      es.timeout: 15s
+
+  # Addresses requirement: Performance Monitoring
+  # Location: 2. SYSTEM OVERVIEW/Success Criteria
+  # Description: Collector configuration for efficient trace processing
+  collector:
+    replicas: 2
+    resources:
+      limits:
+        cpu: 1000m
+        memory: 1Gi
+      requests:
+        cpu: 500m
+        memory: 512Mi
+    options:
+      kafka:
+        producer:
+          batch.size: 128000
+          compression.type: snappy
+    autoscale:
+      enabled: true
+      minReplicas: 2
+      maxReplicas: 5
+      targetCPUUtilizationPercentage: 80
+
+  # Query service configuration for trace retrieval and UI
+  query:
+    replicas: 2
+    resources:
+      limits:
+        cpu: 500m
+        memory: 512Mi
+      requests:
+        cpu: 250m
+        memory: 256Mi
+    options:
+      query:
+        base-path: /jaeger
+      log-level: info
+    serviceType: ClusterIP
+
+  # Agent configuration for trace collection
+  agent:
+    strategy: DaemonSet
+    resources:
+      limits:
+        cpu: 200m
+        memory: 256Mi
+      requests:
+        cpu: 100m
+        memory: 128Mi
+    options:
+      log-level: info
+
+  # Sampling configuration for all services
+  sampling:
+    options:
+      default_strategy:
+        type: probabilistic
+        param: 1
+      service_strategies:
+        - service: core-service
+          type: probabilistic
+          param: 1
+          operationStrategies:
+            - operation: /health
+              type: probabilistic
+              param: 0.1
+
+        - service: document-service
+          type: probabilistic
+          param: 1
+          operationStrategies:
+            - operation: /status
+              type: probabilistic
+              param: 0.1
+
+        - service: email-service
+          type: probabilistic
+          param: 1
+          operationStrategies:
+            - operation: /health
+              type: probabilistic
+              param: 0.1
+
+        - service: notification-service
+          type: probabilistic
+          param: 1
+          operationStrategies:
+            - operation: /health
+              type: probabilistic
+              param: 0.1
+
+  # UI configuration
+  ui:
+    options:
+      dependencies:
+        menuEnabled: true
+      tracking:
+        gaID: UA-000000-2
+      menu:
+        - label: "About Jaeger"
+          items:
+            - label: "Documentation"
+              url: "https://www.jaegertracing.io/docs/latest"
+
+  # Ingress configuration
+  ingress:
+    enabled: true
+    security: oauth-proxy
+    annotations:
+      kubernetes.io/ingress.class: nginx
+      nginx.ingress.kubernetes.io/ssl-redirect: "true"
+
+  # Security configuration
+  security:
+    oauth:
+      enabled: true
