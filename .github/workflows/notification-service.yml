@@ -1,0 +1,91 @@
+# GitHub Actions workflow for Notification Service CI/CD
+# Addresses requirement: CI/CD Pipeline (6. TECHNOLOGY STACK/6.5 CI/CD PIPELINE)
+name: Notification Service CI/CD
+
+# Trigger workflow on push and pull requests to main branch
+# Only when changes are made to notification service files
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - 'src/backend/notification-service/**'
+  pull_request:
+    branches:
+      - main
+    paths:
+      - 'src/backend/notification-service/**'
+
+# Environment variables used across jobs
+env:
+  REGISTRY: ${{ secrets.AWS_ECR_REGISTRY }}
+  IMAGE_NAME: notification-service
+  NODE_VERSION: '18.x'
+  PORT: '3004'
+
+# Define required permissions for the workflow
+permissions:
+  contents: read
+  packages: write
+  id-token: write
+
+# Workflow jobs
+jobs:
+  # Build and test job
+  # Addresses requirement: CI/CD Pipeline (6. TECHNOLOGY STACK/6.5 CI/CD PIPELINE)
+  build-and-test:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v3
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v3
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+
+      - name: Install dependencies
+        run: cd src/backend/notification-service && npm ci
+
+      - name: Run linting
+        run: cd src/backend/notification-service && npm run lint
+
+      - name: Run unit tests
+        run: cd src/backend/notification-service && npm run test
+
+      - name: Run integration tests
+        run: cd src/backend/notification-service && npm run test:integration
+
+      - name: Build TypeScript code
+        run: cd src/backend/notification-service && npm run build
+
+  # Build and push Docker image job
+  # Addresses requirements:
+  # - Containerization (6. TECHNOLOGY STACK/6.3 Containerization)
+  # - Integration Layer (2. SYSTEM OVERVIEW/High-Level Description)
+  build-and-push-image:
+    needs: [build-and-test]
+    runs-on: ubuntu-latest
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v3
+
+      - name: Setup Docker Buildx
+        uses: docker/setup-buildx-action@v2
+
+      - name: Login to AWS ECR
+        uses: docker/login-action@v2
+        with:
+          registry: ${{ env.REGISTRY }}
+          username: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          password: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+
+      - name: Build and push Docker image
+        uses: docker/build-push-action@v4
+        with:
+          context: ./src/backend/notification-service
+          push: true
+          tags: |
+            ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:${{ github.sha }}
+            ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:latest
