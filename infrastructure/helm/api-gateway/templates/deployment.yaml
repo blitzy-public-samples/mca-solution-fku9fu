@@ -1,0 +1,145 @@
+# Human Tasks:
+# 1. Verify Kong container image version compatibility with cluster version
+# 2. Ensure SSL certificates are properly mounted in the specified paths
+# 3. Validate resource limits against production workload requirements
+# 4. Review security context settings for compliance requirements
+# 5. Confirm prometheus metrics port configuration matches monitoring setup
+
+# Requirements Addressed:
+# - API Gateway Deployment (4.2.1): Kong API Gateway implementation with horizontal scaling
+# - High Availability (4.5): Multi-AZ deployment with auto-scaling capabilities
+# - Security Controls (7.3.2): WAF, rate limiting, and authentication implementation
+
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ include "api-gateway.fullname" . }}
+  labels:
+    {{- include "api-gateway.labels" . | nindent 4 }}
+spec:
+  replicas: {{ .Values.replicaCount }}
+  selector:
+    matchLabels:
+      {{- include "api-gateway.selectorLabels" . | nindent 6 }}
+  strategy:
+    type: RollingUpdate
+    rollingUpdate:
+      maxSurge: 1
+      maxUnavailable: 0
+  template:
+    metadata:
+      labels:
+        {{- include "api-gateway.selectorLabels" . | nindent 8 }}
+      annotations:
+        prometheus.io/scrape: "true"
+        prometheus.io/port: "9542"
+    spec:
+      # Anti-affinity for multi-AZ deployment
+      affinity:
+        podAntiAffinity:
+          preferredDuringSchedulingIgnoredDuringExecution:
+            - weight: 100
+              podAffinityTerm:
+                labelSelector:
+                  matchExpressions:
+                    - key: app.kubernetes.io/name
+                      operator: In
+                      values:
+                        - kong
+                topologyKey: topology.kubernetes.io/zone
+      
+      containers:
+        - name: kong
+          image: {{ .Values.image.repository }}:{{ .Values.image.tag }}
+          imagePullPolicy: {{ .Values.image.pullPolicy }}
+          
+          # Container ports configuration
+          ports:
+            - name: http
+              containerPort: 8000
+              protocol: TCP
+            - name: https
+              containerPort: 8443
+              protocol: TCP
+            - name: admin
+              containerPort: 8001
+              protocol: TCP
+            - name: metrics
+              containerPort: 9542
+              protocol: TCP
+          
+          # Environment configuration
+          env:
+            - name: KONG_DATABASE
+              value: "off"
+            - name: KONG_PROXY_LISTEN
+              value: {{ .Values.env.proxy_listen | quote }}
+            - name: KONG_ADMIN_LISTEN
+              value: {{ .Values.env.admin_listen | quote }}
+            - name: KONG_SSL_CERT
+              value: {{ .Values.env.ssl_cert | quote }}
+            - name: KONG_SSL_CERT_KEY
+              value: {{ .Values.env.ssl_cert_key | quote }}
+            - name: KONG_MEM_CACHE_SIZE
+              value: {{ .Values.env.mem_cache_size | quote }}
+            - name: KONG_CLIENT_MAX_BODY_SIZE
+              value: {{ .Values.env.client_max_body_size | quote }}
+            - name: KONG_CLIENT_BODY_BUFFER_SIZE
+              value: {{ .Values.env.client_body_buffer_size | quote }}
+          
+          # Health checks
+          livenessProbe:
+            httpGet:
+              path: /status
+              port: admin
+              scheme: HTTP
+            initialDelaySeconds: 30
+            timeoutSeconds: 5
+            periodSeconds: 10
+            successThreshold: 1
+            failureThreshold: 3
+          
+          readinessProbe:
+            httpGet:
+              path: /status
+              port: admin
+              scheme: HTTP
+            initialDelaySeconds: 30
+            timeoutSeconds: 5
+            periodSeconds: 10
+            successThreshold: 1
+            failureThreshold: 3
+          
+          # Resource limits
+          resources:
+            {{- toYaml .Values.resources | nindent 12 }}
+          
+          # Volume mounts
+          volumeMounts:
+            - name: kong-config
+              mountPath: /etc/kong
+              readOnly: true
+            - name: ssl-certs
+              mountPath: /etc/kong/ssl
+              readOnly: true
+      
+      # Volumes configuration
+      volumes:
+        - name: kong-config
+          configMap:
+            name: {{ include "api-gateway.fullname" . }}-config
+        - name: ssl-certs
+          secret:
+            secretName: {{ include "api-gateway.fullname" . }}-ssl
+      
+      # Security context
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 1000
+        fsGroup: 1000
+      
+      # Service account
+      serviceAccountName: {{ include "api-gateway.serviceAccountName" . }}
+      
+      # Pod termination grace period
+      terminationGracePeriodSeconds: 60
