@@ -1,0 +1,145 @@
+# Human Tasks:
+# 1. Set up environment variables in deployment platform for database credentials
+# 2. Configure Auth0 tenant and obtain JWT issuer URI and audience values
+# 3. Set up SSL certificates and configure HTTPS in production
+# 4. Configure Prometheus scraping endpoints
+# 5. Set up log aggregation system integration
+# 6. Configure database backup and restore procedures
+# 7. Set up monitoring alerts for key metrics
+
+# Spring Boot 3.1.x
+# Spring Boot Actuator 3.1.x
+# Spring Security 3.1.x
+
+# Addresses requirement: Core Service Configuration - Service identification and runtime settings
+spring:
+  application:
+    name: core-service
+  profiles:
+    active: ${SPRING_PROFILES_ACTIVE:dev}
+
+  # Addresses requirement: Database Configuration - PostgreSQL with connection pooling
+  datasource:
+    url: ${DB_URL}
+    username: ${DB_USERNAME}
+    password: ${DB_PASSWORD}
+    driver-class-name: org.postgresql.Driver
+    hikari:
+      maximum-pool-size: 20
+      minimum-idle: 5
+      connection-timeout: 20000
+      idle-timeout: 300000
+      pool-name: CoreServiceHikariPool
+      auto-commit: false
+      validation-timeout: 5000
+      max-lifetime: 1800000
+      connection-test-query: SELECT 1
+
+  # Addresses requirement: Database Configuration - JPA and Hibernate settings
+  jpa:
+    hibernate:
+      ddl-auto: validate
+      naming:
+        physical-strategy: org.hibernate.boot.model.naming.PhysicalNamingStrategyStandardImpl
+    properties:
+      hibernate:
+        dialect: org.hibernate.dialect.PostgreSQLDialect
+        format_sql: true
+        jdbc:
+          batch_size: 50
+          fetch_size: 50
+        order_inserts: true
+        order_updates: true
+        generate_statistics: false
+        session:
+          events:
+            log:
+              LOG_QUERIES_SLOWER_THAN_MS: 250
+
+  # Addresses requirement: Database Configuration - Flyway migration settings
+  flyway:
+    enabled: true
+    locations: classpath:db/migration
+    baseline-on-migrate: true
+    validate-on-migrate: true
+    clean-disabled: true
+    connect-retries: 3
+    encoding: UTF-8
+
+  # Addresses requirement: Security Configuration - JWT and OAuth2 settings
+  security:
+    oauth2:
+      resourceserver:
+        jwt:
+          issuer-uri: ${JWT_ISSUER_URI}
+          audience: ${JWT_AUDIENCE}
+
+# Addresses requirement: Core Service Configuration - Server settings
+server:
+  port: 8080
+  servlet:
+    context-path: /api/v1
+  compression:
+    enabled: true
+    mime-types: application/json,application/xml,text/html,text/plain
+    min-response-size: 1024
+  tomcat:
+    max-threads: 200
+    min-spare-threads: 10
+    max-connections: 10000
+    accept-count: 100
+    connection-timeout: 5000
+  http2:
+    enabled: true
+
+# Addresses requirement: Monitoring Configuration - Actuator and Prometheus settings
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,metrics,prometheus
+      base-path: /actuator
+      cors:
+        allowed-origins: "*"
+        allowed-methods: GET
+  endpoint:
+    health:
+      show-details: when_authorized
+      probes:
+        enabled: true
+    prometheus:
+      enabled: true
+  metrics:
+    export:
+      prometheus:
+        enabled: true
+    distribution:
+      percentiles-histogram: true
+      sla:
+        http:
+          server:
+            requests: 100ms,500ms
+    tags:
+      application: ${spring.application.name}
+    enable:
+      jvm: true
+      process: true
+      system: true
+      logback: true
+      tomcat: true
+
+# Addresses requirement: Core Service Configuration - Logging configuration
+logging:
+  level:
+    root: INFO
+    com.dollarfunding: DEBUG
+    org.springframework: INFO
+    org.hibernate.SQL: DEBUG
+    org.hibernate.type.descriptor.sql.BasicBinder: TRACE
+  pattern:
+    console: "%d{yyyy-MM-dd HH:mm:ss} [%thread] %-5level %logger{36} - %msg%n"
+    file: "%d{yyyy-MM-dd HH:mm:ss} [%thread] %-5level %logger{36} - %msg%n"
+  file:
+    name: logs/core-service.log
+    max-size: 10MB
+    max-history: 7
