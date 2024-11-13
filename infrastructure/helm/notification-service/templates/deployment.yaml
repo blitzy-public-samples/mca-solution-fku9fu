@@ -1,0 +1,110 @@
+# Human Tasks:
+# 1. Ensure Kubernetes cluster has sufficient resources for the specified limits
+# 2. Configure monitoring system to track pod health metrics
+# 3. Verify network policies allow health check endpoints
+# 4. Set up proper node labels for zone-based scheduling
+
+# Addresses requirement: Deployment Architecture - Multi-AZ deployment configuration
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ template "notification-service.fullname" . }}
+  labels:
+    {{- include "notification-service.labels" . | nindent 4 }}
+spec:
+  # Addresses requirement: High Availability - Minimum 2 replicas for redundancy
+  replicas: {{ coalesce .Values.replicaCount 2 }}
+  selector:
+    matchLabels:
+      {{- include "notification-service.selectorLabels" . | nindent 6 }}
+  template:
+    metadata:
+      labels:
+        {{- include "notification-service.selectorLabels" . | nindent 8 }}
+      annotations:
+        # Ensure pods are restarted when config changes
+        checksum/config: {{ include (print $.Template.BasePath "/configmap.yaml") . | sha256sum }}
+    spec:
+      # Addresses requirement: High Availability - Pod distribution across zones
+      affinity:
+        podAntiAffinity:
+          preferredDuringSchedulingIgnoredDuringExecution:
+          - weight: 100
+            podAffinityTerm:
+              labelSelector:
+                matchExpressions:
+                - key: app.kubernetes.io/name
+                  operator: In
+                  values:
+                  - notification-service
+              # Ensure pods are distributed across different nodes
+              topologyKey: kubernetes.io/hostname
+      
+      # Addresses requirement: Container Strategy - Container specifications
+      containers:
+      - name: notification-service
+        image: "{{ default "notification-service" .Values.image.repository }}:{{ default "latest" .Values.image.tag }}"
+        imagePullPolicy: {{ default "IfNotPresent" .Values.image.pullPolicy }}
+        
+        # Addresses requirement: Integration Layer - Service port configuration
+        ports:
+        - containerPort: 3000
+          protocol: TCP
+          name: http
+        
+        # Addresses requirement: Container Strategy - Resource management
+        resources:
+          limits:
+            cpu: {{ default "500m" .Values.resources.limits.cpu }}
+            memory: {{ default "512Mi" .Values.resources.limits.memory }}
+          requests:
+            cpu: {{ default "200m" .Values.resources.requests.cpu }}
+            memory: {{ default "256Mi" .Values.resources.requests.memory }}
+        
+        # Addresses requirement: High Availability - Health monitoring
+        livenessProbe:
+          httpGet:
+            path: /health
+            port: 3000
+          initialDelaySeconds: 30
+          periodSeconds: 15
+          timeoutSeconds: 5
+          failureThreshold: 3
+        
+        readinessProbe:
+          httpGet:
+            path: /health
+            port: 3000
+          initialDelaySeconds: 15
+          periodSeconds: 10
+          timeoutSeconds: 3
+          successThreshold: 1
+          failureThreshold: 3
+        
+        # Addresses requirement: Container Strategy - Environment configuration
+        env:
+        - name: NODE_ENV
+          value: {{ default "production" .Values.environment }}
+        - name: PORT
+          value: "3000"
+        
+        # Optional volume mounts for configuration
+        volumeMounts:
+        - name: config-volume
+          mountPath: /app/config
+          readOnly: true
+      
+      # Addresses requirement: Container Strategy - Configuration management
+      volumes:
+      - name: config-volume
+        configMap:
+          name: {{ template "notification-service.fullname" . }}-config
+      
+      # Addresses requirement: High Availability - Service stability
+      terminationGracePeriodSeconds: 60
+      
+      # Security context for running as non-root
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 1000
+        fsGroup: 2000
