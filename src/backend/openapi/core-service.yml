@@ -1,0 +1,374 @@
+# OpenAPI specification for MCA Application Processing System's core service
+# Version: 3.0.3
+# Swagger UI: v4.15.5
+
+openapi: 3.0.3
+
+info:
+  title: MCA Application Processing Core Service API
+  description: REST API for managing merchant cash advance applications
+  version: 1.0.0
+  contact:
+    name: Dollar Funding Technical Support
+    email: support@dollarfunding.com
+
+servers:
+  - url: /api/v1
+    description: Core service API base path
+
+# Requirement: API Architecture - REST over HTTPS with JWT authentication and rate limiting
+security:
+  - bearerAuth: []
+
+paths:
+  /applications:
+    post:
+      summary: Create new application
+      description: Submit a new MCA application for processing
+      operationId: createApplication
+      tags:
+        - Applications
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ApplicationDTO'
+      responses:
+        '201':
+          description: Application created successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApplicationDTO'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '422':
+          $ref: '#/components/responses/ValidationError'
+    get:
+      summary: List applications
+      description: Retrieve a paginated list of applications with optional filtering
+      operationId: listApplications
+      tags:
+        - Applications
+      parameters:
+        - $ref: '#/components/parameters/pageNumber'
+        - $ref: '#/components/parameters/pageSize'
+        - name: status
+          in: query
+          description: Filter by application status
+          schema:
+            type: string
+            enum: [DRAFT, SUBMITTED, APPROVED, REJECTED]
+        - name: fromDate
+          in: query
+          description: Filter by creation date (from)
+          schema:
+            type: string
+            format: date-time
+        - name: toDate
+          in: query
+          description: Filter by creation date (to)
+          schema:
+            type: string
+            format: date-time
+      responses:
+        '200':
+          description: List of applications retrieved successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  content:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/ApplicationDTO'
+                  pagination:
+                    $ref: '#/components/schemas/PaginationMetadata'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+
+  /applications/{id}:
+    parameters:
+      - name: id
+        in: path
+        description: Application ID
+        required: true
+        schema:
+          type: string
+          format: uuid
+    get:
+      summary: Get application details
+      description: Retrieve detailed information about a specific application
+      operationId: getApplication
+      tags:
+        - Applications
+      responses:
+        '200':
+          description: Application details retrieved successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApplicationDTO'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          $ref: '#/components/responses/NotFound'
+    put:
+      summary: Update application
+      description: Update an existing application's information
+      operationId: updateApplication
+      tags:
+        - Applications
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ApplicationDTO'
+      responses:
+        '200':
+          description: Application updated successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApplicationDTO'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '422':
+          $ref: '#/components/responses/ValidationError'
+
+  /applications/{id}/process:
+    parameters:
+      - name: id
+        in: path
+        description: Application ID
+        required: true
+        schema:
+          type: string
+          format: uuid
+    post:
+      summary: Process application
+      description: Trigger processing of a submitted application
+      operationId: processApplication
+      tags:
+        - Applications
+      responses:
+        '202':
+          description: Application processing initiated
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  status:
+                    type: string
+                    enum: [PROCESSING]
+                  message:
+                    type: string
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '409':
+          $ref: '#/components/responses/Conflict'
+
+components:
+  schemas:
+    # Requirement: Data Management - API specifications for merchant information
+    ApplicationDTO:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+          readOnly: true
+        status:
+          type: string
+          enum: [DRAFT, SUBMITTED, APPROVED, REJECTED]
+        createdAt:
+          type: string
+          format: date-time
+          readOnly: true
+        updatedAt:
+          type: string
+          format: date-time
+          readOnly: true
+        reviewStatus:
+          type: string
+          enum: [PENDING, IN_REVIEW, COMPLETED]
+        requestedAmount:
+          type: number
+          format: decimal
+          minimum: 0
+          exclusiveMinimum: true
+        merchant:
+          $ref: '#/components/schemas/MerchantDTO'
+        documentIds:
+          type: array
+          items:
+            type: string
+            format: uuid
+        metadata:
+          type: object
+          additionalProperties: true
+      required:
+        - status
+        - requestedAmount
+        - merchant
+
+    MerchantDTO:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+          readOnly: true
+        legalName:
+          type: string
+          minLength: 2
+          maxLength: 100
+        dbaName:
+          type: string
+          maxLength: 100
+        ein:
+          type: string
+          pattern: ^\d{9}$
+        address:
+          type: object
+          properties:
+            street:
+              type: string
+            city:
+              type: string
+            state:
+              type: string
+              pattern: ^[A-Z]{2}$
+            zip:
+              type: string
+              pattern: ^\d{5}(-\d{4})?$
+          required:
+            - street
+            - city
+            - state
+            - zip
+        industry:
+          type: string
+        revenue:
+          type: number
+          format: decimal
+          minimum: 0
+          exclusiveMinimum: true
+      required:
+        - legalName
+        - ein
+        - address
+        - industry
+        - revenue
+
+    PaginationMetadata:
+      type: object
+      properties:
+        pageNumber:
+          type: integer
+          minimum: 0
+        pageSize:
+          type: integer
+          minimum: 1
+        totalPages:
+          type: integer
+          minimum: 0
+        totalElements:
+          type: integer
+          minimum: 0
+      required:
+        - pageNumber
+        - pageSize
+        - totalPages
+        - totalElements
+
+    Error:
+      type: object
+      properties:
+        code:
+          type: string
+        message:
+          type: string
+        details:
+          type: array
+          items:
+            type: string
+      required:
+        - code
+        - message
+
+  parameters:
+    pageNumber:
+      name: page
+      in: query
+      description: Page number (0-based)
+      schema:
+        type: integer
+        minimum: 0
+        default: 0
+    pageSize:
+      name: size
+      in: query
+      description: Number of items per page
+      schema:
+        type: integer
+        minimum: 1
+        maximum: 100
+        default: 20
+
+  responses:
+    BadRequest:
+      description: Invalid request parameters
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
+    Unauthorized:
+      description: Authentication required or invalid credentials
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
+    NotFound:
+      description: Requested resource not found
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
+    Conflict:
+      description: Request conflicts with current state
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
+    ValidationError:
+      description: Request validation failed
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
+
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+      description: JWT token obtained from authentication service
+
+tags:
+  - name: Applications
+    description: Operations for managing MCA applications
