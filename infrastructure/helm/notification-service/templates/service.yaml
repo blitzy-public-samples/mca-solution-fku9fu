@@ -1,0 +1,37 @@
+# Human Tasks:
+# 1. Verify the port number (3000) matches the application's configured port
+# 2. Ensure service name matches deployment selectors
+# 3. Confirm the target port name 'http' is defined in the deployment
+
+# Addresses requirement: System Availability (2. SYSTEM OVERVIEW/Success Criteria)
+# Kubernetes service configuration enabling load balancing and service discovery
+apiVersion: v1
+kind: Service
+
+# Addresses requirement: Integration Layer (2. SYSTEM OVERVIEW/High-Level Description)
+# Service metadata with consistent labeling for webhook notification endpoints
+metadata:
+  name: {{ template "notification-service.fullname" . }}
+  labels:
+    app.kubernetes.io/name: {{ template "notification-service.name" . }}
+    helm.sh/chart: {{ template "notification-service.chart" . }}
+    app.kubernetes.io/instance: {{ .Release.Name }}
+    app.kubernetes.io/managed-by: {{ .Release.Service }}
+
+# Addresses requirements: 
+# - Deployment Architecture (4. SYSTEM ARCHITECTURE/4.5 Deployment Architecture)
+# - High Availability (4. SYSTEM ARCHITECTURE/4.2 Component Details)
+# Service specification for internal cluster networking and load balancing
+spec:
+  # Using ClusterIP for internal service discovery and load balancing
+  type: ClusterIP
+  ports:
+    # Main HTTP port for webhook notifications
+    - port: 3000
+      targetPort: http
+      protocol: TCP
+      name: http
+  # Label selector for pod discovery
+  selector:
+    app.kubernetes.io/name: {{ template "notification-service.name" . }}
+    app.kubernetes.io/instance: {{ .Release.Name }}
