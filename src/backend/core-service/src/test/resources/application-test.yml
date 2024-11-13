@@ -1,0 +1,53 @@
+# Human Tasks:
+# 1. Verify H2 database console access at http://localhost:{random-port}/h2-console when needed
+# 2. Configure test OAuth2 client credentials in local development environment
+# 3. Ensure test logging directory exists and has write permissions
+
+# Addresses requirement: Test Environment Configuration - Development and test environment configuration
+spring:
+  profiles: test
+
+  # Addresses requirement: Test Environment Configuration - In-memory database configuration
+  datasource:
+    url: jdbc:h2:mem:testdb;DB_CLOSE_DELAY=-1;DB_CLOSE_ON_EXIT=FALSE
+    username: sa
+    password: ''
+    driver-class-name: org.h2.Driver
+    hikari:
+      maximum-pool-size: 5
+      minimum-idle: 1
+      connection-timeout: 5000
+
+  # Addresses requirement: Test Environment Configuration - JPA test configuration
+  jpa:
+    hibernate:
+      ddl-auto: create-drop
+      show-sql: true
+      format_sql: true
+    properties:
+      hibernate:
+        dialect: org.hibernate.dialect.H2Dialect
+
+  # Addresses requirement: Test Environment Configuration - Disabled migrations for testing
+  flyway:
+    enabled: false
+
+  # Addresses requirement: Data Security in Test - Simplified security configuration
+  security:
+    oauth2:
+      resourceserver:
+        jwt:
+          issuer-uri: http://localhost:9999
+          audience: test-client
+
+# Addresses requirement: Test Environment Configuration - Server configuration
+server:
+  port: 0
+
+# Addresses requirement: Test Environment Configuration - Enhanced logging for debugging
+logging:
+  level:
+    root: INFO
+    com.dollarfunding: DEBUG
+    org.hibernate.SQL: DEBUG
+    org.hibernate.type.descriptor.sql.BasicBinder: TRACE
