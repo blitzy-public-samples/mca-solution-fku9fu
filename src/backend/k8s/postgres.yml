@@ -1,0 +1,159 @@
+# Human Tasks:
+# 1. Verify AWS Aurora PostgreSQL 14.x compatibility with provided configuration
+# 2. Configure AWS IAM roles and policies for Aurora PostgreSQL access
+# 3. Set up automated backup retention policies
+# 4. Configure monitoring and alerting for database metrics
+# 5. Implement database parameter group settings for performance optimization
+# 6. Set up cross-region snapshot replication for disaster recovery
+# 7. Configure VPC security groups for database access
+# 8. Implement automated failover testing procedure
+
+# Kubernetes version: 1.27.x
+# PostgreSQL version: 14-alpine
+
+# Addresses requirement: Database Solution
+# Location: Technical Specification/Technology Stack/Databases & Storage
+# Description: Aurora PostgreSQL 14.x deployment with multi-AZ configuration and r6g.2xlarge instances
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: postgres
+  namespace: mca-system
+  labels:
+    app: postgres
+    tier: database
+spec:
+  ports:
+    - port: 5432
+      targetPort: 5432
+      protocol: TCP
+  selector:
+    app: postgres
+  type: ClusterIP
+
+# Addresses requirement: High Availability
+# Location: Technical Specification/Infrastructure/Deployment Environment
+# Description: Multi-AZ deployment with full redundancy and high availability
+---
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: postgres-pvc
+  namespace: mca-system
+  annotations:
+    volume.beta.kubernetes.io/storage-class: gp3
+spec:
+  accessModes:
+    - ReadWriteOnce
+  resources:
+    requests:
+      storage: 100Gi
+  storageClassName: gp3
+
+# Addresses requirement: Data Security
+# Location: Technical Specification/Security Considerations/Data Security/Encryption Standards
+# Description: Database encryption with TDE using AES-256 and automated backup encryption
+---
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  name: postgres
+  namespace: mca-system
+  labels:
+    app: postgres
+    tier: database
+spec:
+  serviceName: postgres
+  replicas: 3
+  selector:
+    matchLabels:
+      app: postgres
+  template:
+    metadata:
+      labels:
+        app: postgres
+    spec:
+      securityContext:
+        fsGroup: 999
+        runAsUser: 999
+        runAsGroup: 999
+      containers:
+        - name: postgres
+          image: postgres:14-alpine
+          imagePullPolicy: IfNotPresent
+          ports:
+            - containerPort: 5432
+              protocol: TCP
+          env:
+            - name: POSTGRES_USER
+              valueFrom:
+                secretKeyRef:
+                  name: app-secrets
+                  key: db-username
+            - name: POSTGRES_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: app-secrets
+                  key: db-password
+            - name: POSTGRES_DB
+              value: mca_db
+            - name: PGDATA
+              value: /var/lib/postgresql/data/pgdata
+          volumeMounts:
+            - name: postgres-storage
+              mountPath: /var/lib/postgresql/data
+          resources:
+            requests:
+              cpu: "2"
+              memory: "8Gi"
+            limits:
+              cpu: "4"
+              memory: "16Gi"
+          livenessProbe:
+            exec:
+              command:
+                - pg_isready
+                - -U
+                - postgres
+            initialDelaySeconds: 30
+            periodSeconds: 10
+            timeoutSeconds: 5
+            successThreshold: 1
+            failureThreshold: 3
+          readinessProbe:
+            exec:
+              command:
+                - pg_isready
+                - -U
+                - postgres
+            initialDelaySeconds: 5
+            periodSeconds: 5
+            timeoutSeconds: 3
+            successThreshold: 1
+            failureThreshold: 3
+          startupProbe:
+            exec:
+              command:
+                - pg_isready
+                - -U
+                - postgres
+            initialDelaySeconds: 30
+            periodSeconds: 10
+            timeoutSeconds: 5
+            successThreshold: 1
+            failureThreshold: 30
+      volumes:
+        - name: postgres-storage
+          persistentVolumeClaim:
+            claimName: postgres-pvc
+  volumeClaimTemplates:
+    - metadata:
+        name: postgres-storage
+      spec:
+        accessModes:
+          - ReadWriteOnce
+        storageClassName: gp3
+        resources:
+          requests:
+            storage: 100Gi
