@@ -1,0 +1,102 @@
+DOLLAR FUNDING MCA APPLICATION PROCESSING SYSTEM
+PROPRIETARY SOFTWARE LICENSE AGREEMENT
+Version 1.0
+© 2023 Dollar Funding. All Rights Reserved.
+
+1. DEFINITIONS
+
+"Software" means the Dollar Funding MCA Application Processing System, including but not limited to:
+- Source code
+- Documentation
+- Configurations
+- Data models
+- User interfaces
+- API specifications
+- Database schemas
+- Infrastructure definitions
+- Machine learning models
+- OCR processing algorithms
+- Document classification systems
+- Integration patterns
+- Security protocols
+- Deployment configurations
+
+"Sensitive Components" include but are not limited to:
+- Financial data processing mechanisms
+- Personal information handling systems
+- OCR technology implementations
+- Document classification algorithms
+- System architecture
+- Database schemas
+- API security patterns
+- Authentication mechanisms
+- Authorization rules
+- Data encryption methods
+- Integration endpoints
+- Machine learning models
+- Processing workflows
+- Business logic
+
+2. PROPRIETARY RIGHTS
+
+This Software is the confidential and proprietary property of Dollar Funding. All rights, title, and interest in and to the Software, including all intellectual property rights, remain with Dollar Funding.
+
+3. LICENSE RESTRICTIONS
+
+This Software is NOT licensed for:
+a) Redistribution in any form
+b) Modification of any components
+c) Reverse engineering, decompiling, or disassembling
+d) Sublicensing or transfer
+e) Use beyond internal business operations
+
+4. COMPLIANCE REQUIREMENTS
+
+The Software implements and must maintain compliance with:
+a) SOC 2 Type II standards
+b) PCI DSS requirements
+c) GDPR regulations
+d) Applicable State Privacy Laws
+
+5. DATA HANDLING OBLIGATIONS
+
+Users of the Software must adhere to:
+a) 7-year data retention requirements
+b) Field-level encryption protocols
+c) Data masking in non-production environments
+d) Comprehensive audit logging
+e) Strict access control implementation
+
+6. CONFIDENTIALITY
+
+All aspects of the Software, including its operation, architecture, and implementation details, are considered strictly confidential information.
+
+7. WARRANTY DISCLAIMER
+
+THE SOFTWARE IS PROVIDED "AS IS" WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLIED.
+
+8. LIABILITY LIMITATION
+
+IN NO EVENT SHALL DOLLAR FUNDING BE LIABLE FOR ANY SPECIAL, INCIDENTAL, INDIRECT, OR CONSEQUENTIAL DAMAGES.
+
+9. TERM AND TERMINATION
+
+Dollar Funding reserves the right to terminate access to the Software for any violation of this license agreement.
+
+10. GOVERNING LAW
+
+This agreement shall be governed by the laws of the jurisdiction where Dollar Funding is headquartered.
+
+11. SURVIVAL
+
+Sections regarding confidentiality, proprietary rights, and data handling obligations survive termination of this agreement.
+
+12. ENTIRE AGREEMENT
+
+This license constitutes the entire agreement regarding the Software and supersedes all prior agreements.
+
+For licensing inquiries contact:
+Dollar Funding
+[Contact Information]
+
+NOTICE: Unauthorized access, use, or distribution of this Software is strictly prohibited and may result in severe civil and criminal penalties.
