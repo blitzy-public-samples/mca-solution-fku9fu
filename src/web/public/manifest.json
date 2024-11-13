@@ -1,0 +1,61 @@
+{
+  "name": "Dollar Funding MCA Portal",
+  "short_name": "MCA Portal",
+  "description": "Merchant Cash Advance application processing system for Dollar Funding",
+  "icons": [
+    {
+      "src": "logo.svg",
+      "sizes": "any",
+      "type": "image/svg+xml",
+      "purpose": "any maskable"
+    }
+  ],
+  "start_url": "/",
+  "display": "standalone",
+  "theme_color": "#1976d2",
+  "background_color": "#ffffff",
+  "orientation": "any",
+  "scope": "/",
+  "prefer_related_applications": false,
+  "categories": [
+    "business",
+    "finance",
+    "productivity"
+  ],
+  "shortcuts": [
+    {
+      "name": "New Application",
+      "url": "/applications/new",
+      "description": "Create a new MCA application"
+    },
+    {
+      "name": "Dashboard",
+      "url": "/dashboard",
+      "description": "View MCA application dashboard"
+    }
+  ],
+  "screenshots": [
+    {
+      "src": "screenshot-desktop.png",
+      "sizes": "1920x1080",
+      "type": "image/png",
+      "form_factor": "wide"
+    },
+    {
+      "src": "screenshot-mobile.png",
+      "sizes": "750x1334",
+      "type": "image/png",
+      "form_factor": "narrow"
+    }
+  ],
+  "related_applications": [],
+  "protocol_handlers": [
+    {
+      "protocol": "web+mcaportal",
+      "url": "/applications/%s"
+    }
+  ],
+  "edge_side_panel": {
+    "preferred_width": 480
+  }
+}
