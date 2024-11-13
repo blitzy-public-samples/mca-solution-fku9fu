@@ -1,0 +1,118 @@
+# Helm v3.12.x, Kubernetes v1.27.x
+
+# Global name overrides
+nameOverride: ""
+fullnameOverride: ""
+
+# Image configuration
+# Addresses requirement: Container Strategy (8. INFRASTRUCTURE/8.3 CONTAINERIZATION)
+image:
+  repository: dollarfunding/document-service
+  tag: latest
+  pullPolicy: IfNotPresent
+  pullSecrets: []
+
+# Deployment configuration
+# Addresses requirement: Document Processing Service Configuration (4. SYSTEM ARCHITECTURE/4.2.1 Core Components)
+# Addresses requirement: High Availability (2. SYSTEM OVERVIEW/Success Criteria)
+deployment:
+  replicaCount: 2
+  strategy:
+    type: RollingUpdate
+    rollingUpdate:
+      maxSurge: 1
+      maxUnavailable: 0
+  annotations:
+    prometheus.io/scrape: "true"
+    prometheus.io/port: "8000"
+  labels:
+    app.kubernetes.io/component: document-service
+    app.kubernetes.io/part-of: mca-system
+  readinessProbe:
+    httpGet:
+      path: /health
+      port: 8000
+    initialDelaySeconds: 20
+    periodSeconds: 15
+  livenessProbe:
+    httpGet:
+      path: /health
+      port: 8000
+    initialDelaySeconds: 30
+    periodSeconds: 20
+
+# Service configuration
+service:
+  type: ClusterIP
+  port: 8000
+  targetPort: 8000
+  annotations:
+    service.beta.kubernetes.io/aws-load-balancer-internal: "true"
+
+# Resource configuration
+# Addresses requirement: Resource Management (6. TECHNOLOGY STACK/6.3 DATABASES & STORAGE)
+resources:
+  limits:
+    cpu: "2"
+    memory: 4Gi
+  requests:
+    cpu: 500m
+    memory: 1Gi
+
+# Horizontal Pod Autoscaling configuration
+# Addresses requirement: High Availability (2. SYSTEM OVERVIEW/Success Criteria)
+autoscaling:
+  enabled: true
+  minReplicas: 2
+  maxReplicas: 10
+  targetCPUUtilizationPercentage: 80
+  targetMemoryUtilizationPercentage: 80
+  behavior:
+    scaleDown:
+      stabilizationWindowSeconds: 300
+    scaleUp:
+      stabilizationWindowSeconds: 60
+
+# Ingress configuration
+ingress:
+  enabled: false
+  annotations: {}
+  hosts: []
+  tls: []
+
+# Security context configuration for pods
+podSecurityContext:
+  fsGroup: 1000
+  runAsUser: 1000
+  runAsGroup: 1000
+
+# Security context configuration for containers
+securityContext:
+  runAsNonRoot: true
+  runAsUser: 1000
+  allowPrivilegeEscalation: false
+  capabilities:
+    drop:
+      - ALL
+  readOnlyRootFilesystem: true
+
+# Node selector configuration
+nodeSelector:
+  kubernetes.io/arch: amd64
+
+# Tolerations configuration
+tolerations: []
+
+# Affinity configuration for high availability
+affinity:
+  podAntiAffinity:
+    preferredDuringSchedulingIgnoredDuringExecution:
+      - weight: 100
+        podAffinityTerm:
+          labelSelector:
+            matchExpressions:
+              - key: app.kubernetes.io/name
+                operator: In
+                values:
+                  - document-service
+          topologyKey: kubernetes.io/hostname
