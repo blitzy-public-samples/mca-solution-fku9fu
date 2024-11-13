@@ -1,0 +1,143 @@
+# Human Tasks:
+# 1. Verify Redis cluster mode configuration in production environment
+# 2. Configure network policies to restrict Redis access to authorized services
+# 3. Set up monitoring and alerts for Redis cluster health
+# 4. Review and adjust resource limits based on actual usage patterns
+# 5. Implement backup strategy for Redis persistence data
+# 6. Configure cross-AZ pod anti-affinity for high availability
+
+# Kubernetes version: 1.27.x
+# Redis version: 7.0-alpine
+
+# Addresses requirement: Cache Layer
+# Location: Technical Specification/Technology Stack/Databases & Storage
+# Description: Redis 7.0.x deployment with cluster mode enabled using r6g.xlarge nodes
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: redis
+  namespace: mca-system
+  labels:
+    app: redis
+    component: cache
+  annotations:
+    service.beta.kubernetes.io/aws-load-balancer-cross-zone-load-balancing-enabled: "true"
+spec:
+  ports:
+    - port: 6379
+      targetPort: 6379
+      protocol: TCP
+  selector:
+    app: redis
+  type: ClusterIP
+
+# Addresses requirement: Performance Optimization
+# Location: Technical Specification/System Design/Database Design/Performance Optimization
+# Description: Redis caching implementation with multi-node sharding and replication
+---
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  name: redis
+  namespace: mca-system
+  labels:
+    app: redis
+    component: cache
+spec:
+  serviceName: redis
+  replicas: 3
+  selector:
+    matchLabels:
+      app: redis
+  template:
+    metadata:
+      labels:
+        app: redis
+    spec:
+      affinity:
+        podAntiAffinity:
+          requiredDuringSchedulingIgnoredDuringExecution:
+            - labelSelector:
+                matchExpressions:
+                  - key: app
+                    operator: In
+                    values:
+                      - redis
+              topologyKey: topology.kubernetes.io/zone
+      securityContext:
+        fsGroup: 1000
+        runAsUser: 999
+        runAsGroup: 999
+      containers:
+        - name: redis
+          image: redis:7.0-alpine
+          command:
+            - redis-server
+            - "/usr/local/etc/redis/redis.conf"
+          ports:
+            - name: redis
+              containerPort: 6379
+              protocol: TCP
+          resources:
+            requests:
+              cpu: "2"
+              memory: "8Gi"
+            limits:
+              cpu: "4"
+              memory: "16Gi"
+          livenessProbe:
+            tcpSocket:
+              port: redis
+            initialDelaySeconds: 30
+            periodSeconds: 10
+          readinessProbe:
+            exec:
+              command:
+                - redis-cli
+                - ping
+            initialDelaySeconds: 5
+            periodSeconds: 5
+          volumeMounts:
+            - name: redis-data
+              mountPath: /data
+            - name: redis-config
+              mountPath: /usr/local/etc/redis
+          env:
+            - name: REDIS_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: redis-credentials
+                  key: redis-password
+      volumes:
+        - name: redis-config
+          configMap:
+            name: redis-config
+            items:
+              - key: redis.conf
+                path: redis.conf
+  volumeClaimTemplates:
+    - metadata:
+        name: redis-data
+      spec:
+        accessModes:
+          - ReadWriteOnce
+        resources:
+          requests:
+            storage: 50Gi
+        storageClassName: gp3
+
+# Addresses requirement: Session Management
+# Location: Technical Specification/Security Considerations/Authentication and Authorization
+# Description: Redis-based session store with 24-hour session lifetime
+---
+apiVersion: policy/v1
+kind: PodDisruptionBudget
+metadata:
+  name: redis-pdb
+  namespace: mca-system
+spec:
+  minAvailable: 2
+  selector:
+    matchLabels:
+      app: redis
