@@ -1,0 +1,64 @@
+# Kong API Gateway CORS Plugin Configuration
+# Version: Kong 3.4.x
+# Purpose: Configures secure cross-origin access for MCA application processing system
+
+# Human Tasks:
+# 1. Verify all domain names in 'origins' match production environment
+# 2. Review and approve security headers configuration
+# 3. Ensure max_age setting complies with security policy
+# 4. Validate CORS configuration against security requirements
+
+# Requirements Addressed:
+# - API Security Architecture (4.4.2): Implements secure API access through WAF, API Gateway layer
+# - API Architecture (5.3.1): Enables REST over HTTPS with secure cross-origin access control
+# - Security Controls (7.3.2): Implements traffic filtering for API protection
+
+name: cors
+config:
+  # Allowed origins - strictly controlled to Dollar Funding domains
+  origins:
+    - https://*.dollarfunding.com
+    - https://api.dollarfunding.com
+    - https://app.dollarfunding.com
+
+  # Allowed HTTP methods for cross-origin requests
+  methods:
+    - GET
+    - POST
+    - PUT
+    - DELETE
+    - OPTIONS
+    - HEAD
+
+  # Allowed headers for cross-origin requests
+  headers:
+    - Accept
+    - Accept-Version
+    - Content-Length
+    - Content-MD5
+    - Content-Type
+    - Date
+    - Authorization
+    - X-Api-Key
+    - X-Request-ID
+    - X-Forwarded-For
+    - X-Real-IP
+
+  # Headers exposed to the client
+  exposed_headers:
+    - X-Auth-Token
+    - X-Request-ID
+    - X-Rate-Limit-Remaining
+    - X-Rate-Limit-Reset
+
+  # Allow credentials (cookies, authorization headers)
+  credentials: true
+
+  # Preflight request cache duration in seconds
+  max_age: 3600
+
+  # Prevent additional preflight requests
+  preflight_continue: false
+
+  # Disable private network access requests
+  private_network: false
