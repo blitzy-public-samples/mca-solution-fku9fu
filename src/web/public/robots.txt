@@ -1,0 +1,30 @@
+# Addresses requirements:
+# - System Access (3. SCOPE/Implementation Boundaries)
+# - Security Architecture (4.4.2 Security Architecture) 
+# - Data Privacy (A.4 Compliance Matrix)
+
+User-agent: *
+
+# Prevent access to API endpoints containing sensitive merchant data
+Disallow: /api/
+
+# Prevent access to authenticated dashboard area
+Disallow: /dashboard/
+
+# Prevent access to merchant application data and financial information
+Disallow: /applications/
+
+# Prevent access to sensitive merchant documentation
+Disallow: /documents/
+
+# Prevent access to system integration webhooks
+Disallow: /webhooks/
+
+# Prevent access to system configuration
+Disallow: /settings/
+
+# Allow crawling of public marketing content
+Allow: /
+
+# Sitemap for public content
+Sitemap: https://dollarfunding.com/sitemap.xml
