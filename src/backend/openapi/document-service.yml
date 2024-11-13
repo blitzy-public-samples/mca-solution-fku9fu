@@ -1,0 +1,163 @@
+openapi: 3.0.0
+
+# Addresses requirement: Integration Layer - REST APIs for system integration and document management
+info:
+  title: Document Processing Service API
+  description: |
+    REST API for document upload, classification, OCR processing, and management.
+    Supports high-accuracy document processing with < 5 minutes processing time per application.
+  version: 1.0.0
+
+servers:
+  - url: /api/v1
+    description: Base API path
+
+# Addresses requirement: Document Processing API - API endpoints for document classification and OCR processing
+tags:
+  - name: Documents
+    description: Document processing operations
+
+# Security scheme using JWT bearer tokens
+components:
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+      description: JWT token for authentication
+
+  schemas:
+    DocumentResponse:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+          description: Unique identifier for the document
+        application_id:
+          type: string
+          format: uuid
+          description: UUID of associated MCA application
+        file_name:
+          type: string
+          description: Original filename
+        file_type:
+          type: string
+          description: File extension
+        mime_type:
+          type: string
+          description: MIME type of document
+        file_size:
+          type: integer
+          description: Size in bytes
+        document_type:
+          type: string
+          enum: [ISO_APPLICATION, BANK_STATEMENT, VOIDED_CHECK, BUSINESS_LICENSE, TAX_RETURN]
+          description: Classified document type
+        processing_status:
+          type: string
+          enum: [PENDING, PROCESSING, COMPLETED, FAILED]
+          description: Current processing status
+        metadata:
+          type: object
+          description: Additional document metadata
+        created_at:
+          type: string
+          format: date-time
+          description: Creation timestamp
+        updated_at:
+          type: string
+          format: date-time
+          description: Last update timestamp
+      required:
+        - id
+        - application_id
+        - file_name
+        - file_type
+        - processing_status
+        - created_at
+        - updated_at
+
+# Global security requirement
+security:
+  - bearerAuth: []
+
+# API paths
+paths:
+  /documents:
+    post:
+      summary: Upload and process document
+      description: Uploads a document file, initiates classification and OCR processing pipeline
+      operationId: uploadDocument
+      tags:
+        - Documents
+      parameters:
+        - name: application_id
+          in: query
+          required: true
+          description: UUID of the MCA application this document belongs to
+          schema:
+            type: string
+            format: uuid
+        - name: user_id
+          in: query
+          required: true
+          description: ID of user uploading the document
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          multipart/form-data:
+            schema:
+              type: object
+              properties:
+                file:
+                  type: string
+                  format: binary
+                  description: Document file to be processed
+      responses:
+        '201':
+          description: Document uploaded successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/DocumentResponse'
+        '400':
+          description: Invalid request parameters or file format
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  error:
+                    type: string
+                  details:
+                    type: object
+        '413':
+          description: File size too large
+
+  /documents/{document_id}:
+    get:
+      summary: Get document details and processing status
+      description: Retrieves document metadata, classification results and processing status
+      operationId: getDocument
+      tags:
+        - Documents
+      parameters:
+        - name: document_id
+          in: path
+          required: true
+          description: UUID of the document to retrieve
+          schema:
+            type: string
+            format: uuid
+      responses:
+        '200':
+          description: Document details retrieved successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/DocumentResponse'
+        '404':
+          description: Document not found
