@@ -1,0 +1,36 @@
+# Addresses requirement: Email Processing - Automated monitoring and processing of submissions@dollarfunding.com
+# Addresses requirement: System Availability - 99.9% uptime requirement through proper Helm deployment configuration
+# Addresses requirement: Container Strategy - Email Service containerization and deployment specifications
+
+apiVersion: v2
+name: email-service
+description: Helm chart for MCA Application Processing System's email service component that handles automated processing of submissions
+type: application
+version: 1.0.0
+appVersion: "1.0.0"
+
+# Kubernetes version requirement
+kubeVersion: ">=1.27.0-0"
+
+# Keywords for chart discovery and categorization
+keywords:
+  - email-service
+  - mca
+  - application-processing
+  - microservice
+
+# Maintainer information
+maintainers:
+  - name: Dollar Funding DevOps Team
+    email: devops@dollarfunding.com
+
+# Chart annotations
+annotations:
+  category: Application
+  licenses: Proprietary
+  images: email-service:1.0.0
+
+# Dependencies section would go here if there were any chart dependencies
+# This chart currently has no Helm dependencies but relies on:
+# - Helm >= 3.0.0
+# - Kubernetes >= 1.27.0
