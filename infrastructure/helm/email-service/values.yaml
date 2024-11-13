@@ -1,0 +1,162 @@
+# Human Tasks:
+# 1. Configure IMAP credentials in a secure manner (e.g., using Kubernetes secrets)
+# 2. Verify email server SSL certificate and add to trusted certificates if self-signed
+# 3. Configure monitoring alerts in Datadog/PagerDuty for email processing SLAs
+# 4. Set up proper DNS records for the service endpoints
+# 5. Configure network policies for the email service namespace
+
+# Addresses requirement: Email Processing - Automated monitoring and processing of submissions@dollarfunding.com
+replicaCount: 2
+
+# Container image configuration
+image:
+  repository: dollarfunding/email-service
+  tag: latest
+  pullPolicy: IfNotPresent
+
+# Optional name overrides
+nameOverride: ""
+fullnameOverride: ""
+
+# Addresses requirement: Email Processing - Configuration for email monitoring and processing
+env:
+  nodeEnv: production
+  emailImapHost: "imap.dollarfunding.com"
+  emailImapPort: 993
+  emailPollInterval: 60000  # 60 seconds
+  emailMaxAttachmentSize: 10485760  # 10MB
+
+# Addresses requirement: Container Strategy - Resource limits and requests
+resources:
+  limits:
+    cpu: "1"
+    memory: "2Gi"
+  requests:
+    cpu: "500m"
+    memory: "1Gi"
+
+# Addresses requirement: System Availability - High availability configuration
+autoscaling:
+  enabled: true
+  minReplicas: 2
+  maxReplicas: 10
+  targetCPUUtilizationPercentage: 80
+  targetMemoryUtilizationPercentage: 80
+
+# Addresses requirement: Infrastructure Requirements - Monitoring configuration
+monitoring:
+  enabled: true
+  serviceMonitor:
+    enabled: true
+    interval: "30s"
+
+# Addresses requirement: System Availability - Health monitoring
+livenessProbe:
+  httpGet:
+    path: /health
+    port: 3000
+  initialDelaySeconds: 30
+  periodSeconds: 10
+
+readinessProbe:
+  httpGet:
+    path: /health
+    port: 3000
+  initialDelaySeconds: 5
+  periodSeconds: 10
+
+# Addresses requirement: Container Strategy - Security context
+podSecurityContext:
+  fsGroup: 1000
+
+securityContext:
+  runAsNonRoot: true
+  runAsUser: 1000
+  allowPrivilegeEscalation: false
+
+# Service configuration
+service:
+  type: ClusterIP
+  port: 3000
+
+# Ingress configuration
+ingress:
+  enabled: false
+
+# Pod disruption budget for high availability
+podDisruptionBudget:
+  enabled: true
+  minAvailable: 1
+
+# Node selector for AZ distribution
+nodeSelector: {}
+
+# Pod anti-affinity for high availability
+affinity:
+  podAntiAffinity:
+    preferredDuringSchedulingIgnoredDuringExecution:
+    - weight: 100
+      podAffinityTerm:
+        labelSelector:
+          matchExpressions:
+          - key: app.kubernetes.io/name
+            operator: In
+            values:
+            - email-service
+        topologyKey: kubernetes.io/hostname
+
+# Tolerations for node scheduling
+tolerations: []
+
+# Pod annotations for monitoring
+podAnnotations:
+  prometheus.io/scrape: "true"
+  prometheus.io/port: "3000"
+  prometheus.io/path: "/metrics"
+
+# Additional volume mounts for configurations
+volumes: []
+volumeMounts: []
+
+# ConfigMap for non-sensitive configurations
+configMap:
+  enabled: true
+
+# Prometheus rules for monitoring
+prometheusRules:
+  enabled: true
+  rules:
+    - alert: EmailProcessingDelay
+      expr: rate(email_processing_duration_seconds_sum[5m]) > 300
+      for: 5m
+      labels:
+        severity: warning
+      annotations:
+        description: "Email processing is taking longer than 5 minutes"
+        summary: "Slow email processing detected"
+
+    - alert: EmailProcessingErrors
+      expr: rate(email_processing_errors_total[5m]) > 0
+      for: 5m
+      labels:
+        severity: critical
+      annotations:
+        description: "Email processing errors detected"
+        summary: "Email processing errors occurring"
+
+# Network policies
+networkPolicy:
+  enabled: true
+  ingressRules:
+    - from:
+        - podSelector:
+            matchLabels:
+              app.kubernetes.io/name: api-gateway
+  egressRules:
+    - to:
+        - ipBlock:
+            cidr: "0.0.0.0/0"
+            except:
+            - "169.254.0.0/16"
+            - "172.16.0.0/12"
+            - "192.168.0.0/16"
