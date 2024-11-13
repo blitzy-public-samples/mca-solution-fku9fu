@@ -1,0 +1,52 @@
+# 1. Verify all team handles (@team-name) exist in the GitHub organization
+# 2. Ensure all listed team members have appropriate repository access
+# 3. Configure branch protection rules to enforce code owner reviews
+# 4. Set up automated notifications for code owners
+
+# SOC 2 Type II Compliance: Code Ownership and Review Requirements
+# REQ-4.5: Development Process Governance - Standardized code review process
+# REQ-7.1: Security Review Requirements - Mandatory security validation
+# REQ-6.5.1: Quality Control - Code quality and review process
+# REQ-7.3.5: Compliance Requirements - Change management controls
+
+# Core Service Components - Business Logic and Data Processing
+/src/backend/core-service/ @core-service-team @security-team
+
+# Document Processing Service with ML Components
+/src/backend/document-service/ @document-service-team @ml-team
+
+# Email Processing Service
+/src/backend/email-service/ @email-service-team
+
+# Notification and Integration Service
+/src/backend/notification-service/ @notification-service-team
+
+# API Gateway and Security Components
+/src/backend/api-gateway/ @api-team @security-team
+
+# Frontend Components with Accessibility Requirements
+/src/web/ @frontend-team @accessibility-team
+
+# Infrastructure and Security Components
+/infrastructure/ @devops-team @security-team
+
+# Monitoring and SLA Compliance Components
+/infrastructure/monitoring/ @devops-team @sre-team
+
+# Configuration Files
+*.yml @devops-team
+
+# Infrastructure as Code - Terraform Files
+*.tf @devops-team @security-team
+
+# Security-Specific Code Files
+/src/backend/**/security*.{java,ts,py} @security-team
+
+# Test Files and Quality Assurance
+/**/test/** @qa-team
+
+# CI/CD Workflows and Security
+.github/workflows/ @devops-team @security-team
+
+# Default Ownership - Catch-all Pattern
+* @tech-leads
