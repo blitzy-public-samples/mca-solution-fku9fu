@@ -1,0 +1,173 @@
+# Requirements Addressed:
+# - API Gateway Configuration (4.2.1): Kong API Gateway implementation with horizontal scaling and sticky sessions
+# - Security Controls (7.3.2): WAF, rate limiting, and authentication implementation
+# - High Availability (4.5): Multi-AZ deployment with auto-scaling capabilities
+
+# Core deployment configuration
+replicaCount: 3
+nameOverride: ""
+fullnameOverride: ""
+
+# Container image configuration
+image:
+  repository: kong
+  tag: "3.4"
+  pullPolicy: IfNotPresent
+
+# Multi-AZ Load Balancer Service configuration
+service:
+  type: LoadBalancer
+  annotations:
+    service.beta.kubernetes.io/aws-load-balancer-type: nlb
+    service.beta.kubernetes.io/aws-load-balancer-cross-zone-load-balancing-enabled: "true"
+    service.beta.kubernetes.io/aws-load-balancer-connection-draining-enabled: "true"
+    service.beta.kubernetes.io/aws-load-balancer-connection-draining-timeout: "60"
+  ports:
+    http: 80
+    https: 443
+    metrics: 9542
+    proxy: 8000
+    admin: 8001
+
+# Resource allocation for containers
+resources:
+  requests:
+    cpu: 500m
+    memory: 512Mi
+  limits:
+    cpu: 2000m
+    memory: 2Gi
+
+# Kong plugin configurations
+plugins:
+  jwt:
+    enabled: true
+    config:
+      key_claim_name: kid
+      claims_to_verify:
+        - exp
+      auth0_domain: dollarfunding.auth0.com
+
+  rate_limiting:
+    enabled: true
+    config:
+      minute: 1000
+      hour: 10000
+      policy: redis
+      redis_host: redis-master
+      redis_port: 6379
+      redis_timeout: 2000
+
+  cors:
+    enabled: true
+    config:
+      origins:
+        - "*.dollarfunding.com"
+      methods:
+        - GET
+        - POST
+        - PUT
+        - DELETE
+        - OPTIONS
+      headers:
+        - Accept
+        - Authorization
+        - Content-Type
+      exposed_headers:
+        - X-Auth-Token
+      credentials: true
+      max_age: 3600
+
+# Prometheus metrics configuration
+metrics:
+  enabled: true
+  serviceMonitor:
+    enabled: true
+    interval: "30s"
+    namespace: monitoring
+
+# Horizontal Pod Autoscaling configuration
+autoscaling:
+  enabled: true
+  minReplicas: 3
+  maxReplicas: 10
+  targetCPUUtilizationPercentage: 80
+  targetMemoryUtilizationPercentage: 80
+  behavior:
+    scaleDown:
+      stabilizationWindowSeconds: 300
+      policies:
+        - type: Pods
+          value: 1
+          periodSeconds: 60
+    scaleUp:
+      stabilizationWindowSeconds: 0
+      policies:
+        - type: Pods
+          value: 2
+          periodSeconds: 60
+
+# Kong environment configuration
+env:
+  database: "off"
+  proxy_listen: "0.0.0.0:8000, 0.0.0.0:8443 ssl"
+  admin_listen: "0.0.0.0:8001, 0.0.0.0:8444 ssl"
+  ssl_cert: /etc/kong/ssl/dollarfunding.crt
+  ssl_cert_key: /etc/kong/ssl/dollarfunding.key
+  mem_cache_size: "256m"
+  client_max_body_size: "10m"
+  client_body_buffer_size: "10m"
+
+# Ingress configuration
+ingress:
+  enabled: true
+  annotations:
+    kubernetes.io/ingress.class: kong
+    cert-manager.io/cluster-issuer: letsencrypt-prod
+  hosts:
+    - host: api.dollarfunding.com
+      paths:
+        - path: /
+          pathType: Prefix
+
+# Affinity for multi-AZ deployment
+affinity:
+  podAntiAffinity:
+    preferredDuringSchedulingIgnoredDuringExecution:
+      - weight: 100
+        podAffinityTerm:
+          labelSelector:
+            matchExpressions:
+              - key: app.kubernetes.io/name
+                operator: In
+                values:
+                  - kong
+          topologyKey: topology.kubernetes.io/zone
+
+# Pod disruption budget for HA
+podDisruptionBudget:
+  enabled: true
+  minAvailable: 2
+
+# Readiness and liveness probes
+readinessProbe:
+  httpGet:
+    path: /status
+    port: 8001
+  initialDelaySeconds: 30
+  timeoutSeconds: 5
+  periodSeconds: 10
+
+livenessProbe:
+  httpGet:
+    path: /status
+    port: 8001
+  initialDelaySeconds: 30
+  timeoutSeconds: 5
+  periodSeconds: 10
+
+# Security context
+securityContext:
+  runAsUser: 1000
+  runAsGroup: 1000
+  fsGroup: 1000
