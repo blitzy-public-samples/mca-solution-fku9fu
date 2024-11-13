@@ -1,0 +1,81 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!-- Addresses requirement: Web Interface - Web-based interface for application management and monitoring -->
+<!-- Addresses requirement: Visual Design System - Material Design components with consistent branding elements -->
+<svg width="64" height="64" viewBox="0 0 64 64" version="1.1" xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink"
+     role="img" aria-label="Dollar Funding MCA Portal Logo">
+    <!-- Base circle with primary brand color -->
+    <circle cx="32" cy="32" r="30" fill="#1976d2" />
+    
+    <!-- Dollar symbol using Material Design typography -->
+    <text x="32" y="40" 
+          font-family="Roboto" 
+          font-weight="500" 
+          font-size="36"
+          fill="#ffffff"
+          text-anchor="middle"
+          dominant-baseline="middle">$</text>
+    
+    <!-- Circular progress indicator representing funding cycle -->
+    <circle cx="32" cy="32" r="28" 
+            fill="none" 
+            stroke="#424242" 
+            stroke-width="2"
+            stroke-dasharray="175.93 175.93"
+            stroke-dashoffset="44"
+            opacity="0.2" />
+    
+    <!-- Animated progress indicator -->
+    <circle cx="32" cy="32" r="28" 
+            fill="none" 
+            stroke="#ffffff" 
+            stroke-width="2"
+            stroke-dasharray="175.93 175.93"
+            stroke-dashoffset="44"
+            opacity="0.8">
+        <animate attributeName="stroke-dashoffset"
+                 from="175.93"
+                 to="0"
+                 dur="300ms"
+                 repeatCount="1"
+                 fill="freeze"
+                 calcMode="ease-in-out" />
+    </circle>
+    
+    <!-- Accessibility and responsive design metadata -->
+    <metadata>
+        <rdf:RDF xmlns:rdf="http://www.w3.org/1999/02/22-rdf-syntax-ns#"
+                 xmlns:dc="http://purl.org/dc/elements/1.1/">
+            <rdf:Description>
+                <dc:title>Dollar Funding MCA Portal Logo</dc:title>
+                <dc:description>Logo for Dollar Funding's Merchant Cash Advance Portal</dc:description>
+                <dc:creator>Dollar Funding</dc:creator>
+                <dc:format>image/svg+xml</dc:format>
+                <dc:type>Logo</dc:type>
+            </rdf:Description>
+        </rdf:RDF>
+    </metadata>
+    
+    <!-- Style definitions for responsive behavior -->
+    <style type="text/css">
+        @media (max-width: 32px) {
+            svg { width: 32px; height: 32px; }
+        }
+        @media (min-width: 33px) and (max-width: 48px) {
+            svg { width: 48px; height: 48px; }
+        }
+        @media (min-width: 49px) and (max-width: 64px) {
+            svg { width: 64px; height: 64px; }
+        }
+        @media (min-width: 65px) {
+            svg { width: 128px; height: 128px; }
+        }
+    </style>
+    
+    <!-- Optimization attributes -->
+    <defs>
+        <linearGradient id="shadow" x1="0%" y1="0%" x2="0%" y2="100%">
+            <stop offset="0%" style="stop-color:#000000;stop-opacity:0.1"/>
+            <stop offset="100%" style="stop-color:#000000;stop-opacity:0"/>
+        </linearGradient>
+    </defs>
+</svg>
