@@ -1,0 +1,42 @@
+# Requirement: Web Frontend Deployment - Helm chart for web frontend with CDN integration
+apiVersion: v2
+name: dollar-funding-web
+description: Helm chart for Dollar Funding MCA web frontend application with high availability and CDN integration
+type: application
+
+# Requirement: Container Orchestration - Specifies Kubernetes version requirements
+kubeVersion: ">=1.27.0"
+
+# Chart version and application version
+version: 1.0.0
+appVersion: "1.0.0"
+
+# Chart maintainers
+maintainers:
+  - name: Dollar Funding DevOps
+    email: devops@dollarfunding.com
+
+# Keywords for chart discovery
+keywords:
+  - web
+  - frontend
+  - react
+  - mca
+  - high-availability
+
+# Project homepage
+home: https://app.dollarfunding.com
+
+# Requirement: High Availability - Dependencies for high availability deployment
+dependencies:
+  # NGINX Ingress Controller for web traffic management and SSL termination
+  # Version: 4.7.1
+  - name: nginx-ingress
+    version: "4.7.1"
+    repository: https://kubernetes.github.io/ingress-nginx
+    condition: ingress.enabled
+
+# Annotations for Kubernetes and deployment metadata
+annotations:
+  deployment.kubernetes.io/revision: "1"
+  kubernetes.io/ingress-nginx: "4.7.1"
