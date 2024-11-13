@@ -1,0 +1,155 @@
+# Human Tasks:
+# 1. Configure AWS credentials as GitHub repository secrets (AWS_ACCESS_KEY_ID, AWS_SECRET_ACCESS_KEY)
+# 2. Set up AWS ECR repository and update REGISTRY environment variable
+# 3. Configure EKS cluster access credentials and context
+# 4. Set up required Kubernetes namespace and service account
+# 5. Configure environment-specific secrets for the deployment
+
+# Addresses requirement: CI/CD Pipeline - Automated build, test, and deployment pipeline using GitHub Actions
+name: Core Service CI/CD Pipeline
+
+on:
+  push:
+    branches:
+      - main
+  pull_request:
+    branches:
+      - main
+  workflow_dispatch:
+
+env:
+  REGISTRY: aws-account.dkr.ecr.region.amazonaws.com
+  IMAGE_NAME: core-service
+  JAVA_VERSION: '17'
+  GRADLE_VERSION: '8.2.0'
+
+jobs:
+  # Addresses requirement: CI/CD Pipeline - Automated testing with coverage reporting
+  test:
+    name: Run Tests and Coverage
+    runs-on: ubuntu-latest
+    
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v3
+      
+      - name: Set up JDK
+        uses: actions/setup-java@v3
+        with:
+          distribution: 'temurin'
+          java-version: ${{ env.JAVA_VERSION }}
+          cache: 'gradle'
+      
+      - name: Setup Gradle
+        uses: gradle/gradle-build-action@v2
+        with:
+          gradle-version: ${{ env.GRADLE_VERSION }}
+      
+      - name: Run Tests with Coverage
+        run: |
+          ./gradlew test jacocoTestReport --no-daemon
+      
+      - name: Upload Test Results
+        if: always()
+        uses: actions/upload-artifact@v3
+        with:
+          name: test-results
+          path: build/test-results/test
+      
+      - name: Upload Coverage Report
+        if: success()
+        uses: actions/upload-artifact@v3
+        with:
+          name: coverage-report
+          path: build/reports/jacoco
+
+  # Addresses requirements: 
+  # - Containerization - Container build and push to registry
+  # - Security Protocols - Security scanning integration
+  build:
+    name: Build and Scan Container
+    needs: test
+    runs-on: ubuntu-latest
+    
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v3
+      
+      - name: Configure AWS Credentials
+        uses: aws-actions/configure-aws-credentials@v1
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-region: ${{ secrets.AWS_REGION }}
+      
+      - name: Login to Amazon ECR
+        uses: docker/login-action@v2
+        with:
+          registry: ${{ env.REGISTRY }}
+      
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v2
+      
+      - name: Build and Push Image
+        uses: docker/build-push-action@v4
+        with:
+          context: .
+          file: src/backend/core-service/Dockerfile
+          push: true
+          tags: |
+            ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:${{ github.sha }}
+            ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:latest
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+      
+      - name: Run Trivy Vulnerability Scan
+        uses: aquasecurity/trivy-action@0.10.0
+        with:
+          image-ref: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:${{ github.sha }}
+          format: 'table'
+          exit-code: '1'
+          ignore-unfixed: true
+          severity: 'CRITICAL,HIGH'
+      
+      - name: Upload Scan Results
+        if: always()
+        uses: actions/upload-artifact@v3
+        with:
+          name: trivy-results
+          path: trivy-results.txt
+
+  # Addresses requirement: CI/CD Pipeline - Automated deployment to Kubernetes
+  deploy:
+    name: Deploy to Kubernetes
+    needs: build
+    runs-on: ubuntu-latest
+    if: github.ref == 'refs/heads/main' && github.event_name != 'pull_request'
+    
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v3
+      
+      - name: Configure AWS Credentials
+        uses: aws-actions/configure-aws-credentials@v1
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-region: ${{ secrets.AWS_REGION }}
+      
+      - name: Update Kubeconfig
+        run: |
+          aws eks update-kubeconfig --name ${{ secrets.EKS_CLUSTER_NAME }} --region ${{ secrets.AWS_REGION }}
+      
+      - name: Deploy to Kubernetes
+        run: |
+          # Update deployment image
+          kubectl set image deployment/core-service core-service=${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:${{ github.sha }} -n mca-system
+          
+          # Verify rollout
+          kubectl rollout status deployment/core-service -n mca-system --timeout=300s
+      
+      - name: Update Deployment Metadata
+        run: |
+          kubectl annotate deployment/core-service -n mca-system \
+            kubernetes.io/change-cause="Deploy version ${{ github.sha }} from GitHub Actions" \
+            --overwrite
