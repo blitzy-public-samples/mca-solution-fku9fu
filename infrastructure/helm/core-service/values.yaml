@@ -1,0 +1,145 @@
+# Core Service Helm Chart Values
+# Addresses requirement: Core Service Deployment (4.2.1 Core Components)
+# Java Spring Boot service deployment configuration with horizontal scaling and database connection pooling
+
+# Global values
+replicaCount: 2
+nameOverride: ""
+fullnameOverride: ""
+
+# Image configuration
+image:
+  repository: core-service
+  tag: 1.0.0
+  pullPolicy: IfNotPresent
+  imagePullSecrets:
+    - name: regcred
+
+# Resource allocation
+# Addresses requirement: Container Specifications (8.3.2 Container Specifications)
+resources:
+  limits:
+    cpu: "2"
+    memory: 4Gi
+  requests:
+    cpu: 500m
+    memory: 1Gi
+
+# Horizontal Pod Autoscaling
+autoscaling:
+  enabled: true
+  minReplicas: 2
+  maxReplicas: 10
+  targetCPUUtilizationPercentage: 80
+  targetMemoryUtilizationPercentage: 80
+
+# Health check probes
+livenessProbe:
+  httpGet:
+    path: /actuator/health
+    port: 8080
+  initialDelaySeconds: 60
+  periodSeconds: 15
+  timeoutSeconds: 5
+  failureThreshold: 3
+
+readinessProbe:
+  httpGet:
+    path: /actuator/health
+    port: 8080
+  initialDelaySeconds: 30
+  periodSeconds: 10
+  timeoutSeconds: 3
+  failureThreshold: 3
+
+# Environment configuration
+env:
+  spring_profiles_active: prod
+  db_connection_pool_size: "50"
+  db_connection_timeout: "30000"
+  db_max_lifetime: "1800000"
+  server_tomcat_threads_max: "200"
+  server_tomcat_accept_count: "100"
+  java_opts: "-Xms1g -Xmx3g -XX:+UseG1GC"
+
+# Pod affinity configuration
+# Addresses requirement: High Availability (8.1 DEPLOYMENT ENVIRONMENT)
+affinity:
+  podAntiAffinity:
+    preferredDuringSchedulingIgnoredDuringExecution:
+      - weight: 100
+        podAffinityTerm:
+          labelSelector:
+            matchExpressions:
+              - key: app
+                operator: In
+                values:
+                  - core-service
+          topologyKey: kubernetes.io/hostname
+  nodeAffinity:
+    requiredDuringSchedulingIgnoredDuringExecution:
+      nodeSelectorTerms:
+        - matchExpressions:
+            - key: node-role.kubernetes.io/app
+              operator: Exists
+
+# PostgreSQL configuration
+# Using bitnami/postgresql chart version 12.5.3
+postgresql:
+  enabled: true
+  auth:
+    database: mca_db
+    username: mca_user
+    existingSecret: core-service-db-credentials
+  primary:
+    persistence:
+      size: 100Gi
+      storageClass: gp3
+    resources:
+      requests:
+        cpu: "1"
+        memory: 2Gi
+      limits:
+        cpu: "2"
+        memory: 4Gi
+  replication:
+    enabled: true
+    readReplicas: 2
+    synchronousCommit: "on"
+    numSynchronousReplicas: 1
+
+# Monitoring configuration
+# Addresses requirement: Service Monitoring (4.4.1 Monitoring and Observability)
+metrics:
+  enabled: true
+  serviceMonitor:
+    enabled: true
+    interval: "15s"
+    scrapeTimeout: "10s"
+    selector:
+      release: prometheus
+  prometheusRule:
+    enabled: true
+    rules:
+      - alert: CoreServiceHighCPU
+        expr: avg(container_cpu_usage_seconds_total{container="core-service"}) > 0.85
+        for: 5m
+        labels:
+          severity: warning
+
+# Ingress configuration
+ingress:
+  enabled: true
+  annotations:
+    kubernetes.io/ingress.class: nginx
+    nginx.ingress.kubernetes.io/ssl-redirect: "true"
+    nginx.ingress.kubernetes.io/proxy-body-size: "8m"
+  hosts:
+    - host: api.dollarfunding.com
+      paths:
+        - path: /core
+          pathType: Prefix
+  tls:
+    - secretName: core-service-tls
+      hosts:
+        - api.dollarfunding.com
