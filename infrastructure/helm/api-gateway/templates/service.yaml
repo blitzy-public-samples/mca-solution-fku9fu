@@ -1,0 +1,53 @@
+{{/*
+Human Tasks:
+1. Verify AWS Network Load Balancer (NLB) configuration in AWS account
+2. Ensure proper IAM roles and permissions for NLB creation
+3. Configure SSL certificates for HTTPS termination
+4. Verify security group settings allow traffic on ports 80, 443, and 9542
+*/}}
+
+{{/* 
+Requirements Addressed:
+- API Gateway Configuration (4.2.1): Kong API Gateway implementation with horizontal scaling
+- High Availability (4.5): Multi-AZ deployment with AWS NLB for cross-zone load balancing
+- Security Controls (7.3.2): WAF and network security through load balancer configuration
+*/}}
+
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ include "kong.fullname" . }}
+  labels:
+    {{- include "kong.labels" . | nindent 4 }}
+  annotations:
+    # AWS NLB Configuration for High Availability
+    service.beta.kubernetes.io/aws-load-balancer-type: "nlb"
+    service.beta.kubernetes.io/aws-load-balancer-cross-zone-load-balancing-enabled: "true"
+    service.beta.kubernetes.io/aws-load-balancer-connection-draining-enabled: "true"
+    service.beta.kubernetes.io/aws-load-balancer-connection-draining-timeout: "60"
+    {{- if .Values.service.annotations }}
+    {{- toYaml .Values.service.annotations | nindent 4 }}
+    {{- end }}
+spec:
+  type: LoadBalancer
+  # Port configurations for HTTP, HTTPS, and metrics
+  ports:
+    - name: http
+      port: {{ .Values.service.ports.http }}
+      targetPort: {{ .Values.service.ports.proxy }}
+      protocol: TCP
+    - name: https
+      port: {{ .Values.service.ports.https }}
+      targetPort: {{ .Values.service.ports.proxy }}
+      protocol: TCP
+    - name: metrics
+      port: {{ .Values.service.ports.metrics }}
+      targetPort: {{ .Values.service.ports.metrics }}
+      protocol: TCP
+  # Selector for Kong API Gateway pods
+  selector:
+    {{- include "kong.selectorLabels" . | nindent 4 }}
+  # Ensure the external traffic policy is set for better network performance
+  externalTrafficPolicy: Local
+  # Enable health check configuration for NLB
+  healthCheckNodePort: {{ add 30000 (randInt 2000) }}
