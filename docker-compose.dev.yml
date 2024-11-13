@@ -1,0 +1,212 @@
+# REQ-8.1 Development Environment: Development environment configuration with single region, reduced redundancy, and sandbox integrations
+version: '3.8'
+
+services:
+  # REQ-4.1 High-Level Architecture: Kong API Gateway implementation
+  api-gateway:
+    image: kong:3.x
+    ports:
+      - "8000:8000"  # Proxy
+      - "8001:8001"  # Admin API
+      - "8443:8443"  # Proxy SSL
+      - "8444:8444"  # Admin SSL
+    environment:
+      - KONG_DATABASE=off
+      - KONG_PROXY_ACCESS_LOG=/dev/stdout
+      - KONG_ADMIN_ACCESS_LOG=/dev/stdout
+      - KONG_PROXY_ERROR_LOG=/dev/stderr
+      - KONG_ADMIN_ERROR_LOG=/dev/stderr
+    volumes:
+      - ./src/backend/api-gateway/kong.yml:/usr/local/kong/declarative/kong.yml
+    healthcheck:
+      test: ["CMD", "kong", "health"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - mca_network
+
+  # REQ-4.1 High-Level Architecture: Core Service implementation
+  core-service:
+    build:
+      context: ./src/backend/core-service
+      dockerfile: Dockerfile
+    ports:
+      - "8080:8080"
+    environment:
+      - SPRING_PROFILES_ACTIVE=dev
+      - SPRING_DATASOURCE_URL=jdbc:postgresql://postgres:5432/mca_db
+      - SPRING_REDIS_HOST=redis
+    depends_on:
+      - postgres
+      - redis
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8080/api/v1/actuator/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+    networks:
+      - mca_network
+
+  # REQ-4.1 High-Level Architecture: Document Service implementation
+  document-service:
+    build:
+      context: ./src/backend/document-service
+      dockerfile: Dockerfile
+    ports:
+      - "8000:8000"
+    environment:
+      - MINIO_ENDPOINT=minio:9000
+      - RABBITMQ_HOST=rabbitmq
+    depends_on:
+      - minio
+      - rabbitmq
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/health/ready"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+    networks:
+      - mca_network
+
+  # REQ-4.1 High-Level Architecture: Email Service implementation
+  email-service:
+    build:
+      context: ./src/backend/email-service
+      dockerfile: Dockerfile
+    ports:
+      - "3000:3000"
+    environment:
+      - NODE_ENV=development
+      - RABBITMQ_HOST=rabbitmq
+    depends_on:
+      - rabbitmq
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:3000/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+    networks:
+      - mca_network
+
+  # REQ-4.1 High-Level Architecture: Notification Service implementation
+  notification-service:
+    build:
+      context: ./src/backend/notification-service
+      dockerfile: Dockerfile
+    ports:
+      - "3004:3004"
+    environment:
+      - NODE_ENV=development
+      - RABBITMQ_HOST=rabbitmq
+      - REDIS_HOST=redis
+    depends_on:
+      - rabbitmq
+      - redis
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:3004/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+    networks:
+      - mca_network
+
+  # REQ-4.1 High-Level Architecture: Web Frontend implementation
+  web:
+    build:
+      context: ./src/web
+      dockerfile: Dockerfile
+    ports:
+      - "80:80"
+    environment:
+      - NODE_ENV=development
+      - REACT_APP_API_URL=http://localhost:8000
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:80/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+    networks:
+      - mca_network
+
+  # REQ-8.3.1 Container Strategy: Supporting Infrastructure - PostgreSQL
+  postgres:
+    image: postgres:14
+    ports:
+      - "5432:5432"
+    environment:
+      - POSTGRES_DB=mca_db
+      - POSTGRES_USER=mca_user
+      - POSTGRES_PASSWORD=dev_password
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD", "pg_isready", "-U", "mca_user", "-d", "mca_db"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - mca_network
+
+  # REQ-8.3.1 Container Strategy: Supporting Infrastructure - Redis
+  redis:
+    image: redis:7.0
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis_data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - mca_network
+
+  # REQ-8.3.1 Container Strategy: Supporting Infrastructure - RabbitMQ
+  rabbitmq:
+    image: rabbitmq:3.12-management
+    ports:
+      - "5672:5672"
+      - "15672:15672"
+    volumes:
+      - rabbitmq_data:/var/lib/rabbitmq
+    healthcheck:
+      test: ["CMD", "rabbitmq-diagnostics", "check_port_connectivity"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+    networks:
+      - mca_network
+
+  # REQ-8.3.1 Container Strategy: Supporting Infrastructure - MinIO
+  minio:
+    image: minio/minio
+    ports:
+      - "9000:9000"
+      - "9001:9001"
+    environment:
+      - MINIO_ROOT_USER=minioadmin
+      - MINIO_ROOT_PASSWORD=minioadmin
+    volumes:
+      - minio_data:/data
+    command: server /data --console-address ':9001'
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:9000/minio/health/live"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+    networks:
+      - mca_network
+
+# REQ-8.3.1 Container Strategy: Persistent Storage Configuration
+volumes:
+  postgres_data:
+  redis_data:
+  rabbitmq_data:
+  minio_data:
+
+# REQ-8.3.1 Container Strategy: Network Configuration
+networks:
+  mca_network:
+    driver: bridge
