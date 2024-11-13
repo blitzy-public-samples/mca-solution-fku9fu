@@ -1,0 +1,90 @@
+# Human Tasks:
+# 1. Set required environment variables:
+#    - HOSTNAME
+#    - KIBANA_PUBLIC_URL
+#    - ELASTICSEARCH_HOSTS
+#    - KIBANA_SYSTEM_USER
+#    - KIBANA_SYSTEM_PASSWORD
+#    - SECURITY_ENCRYPTION_KEY
+#    - REPORTING_ENCRYPTION_KEY
+# 2. Ensure /var/log/kibana directory exists with correct permissions
+# 3. Place CA certificate at /etc/kibana/certs/ca.crt
+
+# Server Settings
+# Requirement: System Availability - Supports 99.9% uptime through monitoring and alerting capabilities
+server.name: ${HOSTNAME}
+server.host: "0.0.0.0"
+server.port: 5601
+server.publicBaseUrl: ${KIBANA_PUBLIC_URL}
+
+# Elasticsearch Connection Settings
+# Requirement: Log Visualization - Interactive visualization and analysis of system logs and metrics
+elasticsearch.hosts: ${ELASTICSEARCH_HOSTS}
+elasticsearch.username: ${KIBANA_SYSTEM_USER}
+elasticsearch.password: ${KIBANA_SYSTEM_PASSWORD}
+
+# SSL/TLS Configuration
+# Requirement: Security Monitoring - Secure communication with Elasticsearch
+elasticsearch.ssl.certificateAuthorities: /etc/kibana/certs/ca.crt
+elasticsearch.ssl.verificationMode: certificate
+
+# Security Settings
+# Requirement: Security Monitoring - Visualization and analysis of security-related logs and events
+xpack.security.enabled: true
+xpack.security.encryptionKey: ${SECURITY_ENCRYPTION_KEY}
+
+# Reporting Configuration
+# Requirement: Log Visualization - Export and sharing of visualization data
+xpack.reporting.enabled: true
+xpack.reporting.encryptionKey: ${REPORTING_ENCRYPTION_KEY}
+
+# Monitoring Configuration
+# Requirement: System Availability - Infrastructure monitoring
+xpack.monitoring.enabled: true
+xpack.monitoring.ui.container.elasticsearch.enabled: true
+
+# Logging Configuration
+# Requirement: System Availability - Operational monitoring
+logging.dest: /var/log/kibana/kibana.log
+logging.level: info
+
+# Additional Security Headers
+# Requirement: Security Monitoring - Enhanced security headers
+server.ssl.enabled: true
+xpack.security.audit.enabled: true
+
+# Telemetry Settings
+telemetry.enabled: false
+
+# Default Index Settings
+# Requirement: Log Visualization - Streamlined log analysis
+kibana.defaultIndex: "logs-*"
+
+# Search Settings
+# Requirement: Log Visualization - Optimized search performance
+search.timeout: "30s"
+search.maxBuckets: 10000
+
+# Browser Security Settings
+# Requirement: Security Monitoring - Secure browser communication
+server.cors.enabled: false
+xpack.security.secureCookies: true
+
+# Monitoring UI Settings
+# Requirement: System Availability - Enhanced monitoring visibility
+monitoring.ui.container.opensearch.enabled: false
+xpack.monitoring.collection.enabled: true
+
+# Cache Settings
+# Requirement: System Availability - Performance optimization
+cache.maxAge: "1h"
+
+# API Settings
+# Requirement: Log Visualization - API access for integration
+xpack.actions.enabled: true
+xpack.actions.allowedHosts: ["*"]
+
+# Session Management
+# Requirement: Security Monitoring - Secure session handling
+xpack.security.session.idleTimeout: "1h"
+xpack.security.session.lifespan: "24h"
