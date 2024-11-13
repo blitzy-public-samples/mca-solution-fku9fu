@@ -1,0 +1,42 @@
+# Kubernetes Service Template for Core Service
+# Addresses requirements:
+# - Service Discovery (4.2.1 Core Components): Enables service discovery and load balancing
+# - High Availability (8.1 DEPLOYMENT ENVIRONMENT): Supports multi-AZ deployment
+
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ include "core-service.fullname" . }}
+  labels:
+    app.kubernetes.io/name: {{ include "core-service.name" . }}
+    app.kubernetes.io/instance: {{ .Release.Name }}
+    app.kubernetes.io/version: {{ .Chart.AppVersion }}
+    app.kubernetes.io/managed-by: {{ .Release.Service }}
+  annotations:
+    # Enable Prometheus metrics scraping for monitoring
+    prometheus.io/scrape: "true"
+    prometheus.io/port: "8081"
+    prometheus.io/path: "/actuator/prometheus"
+
+spec:
+  # Using ClusterIP for internal service discovery
+  type: ClusterIP
+  ports:
+    # Main application port for business logic
+    - port: 8080
+      targetPort: 8080
+      protocol: TCP
+      name: http
+    # Management port for metrics and health checks
+    - port: 8081
+      targetPort: 8081
+      protocol: TCP
+      name: management
+  
+  # Service selector to match pods with corresponding labels
+  selector:
+    app.kubernetes.io/name: {{ include "core-service.name" . }}
+    app.kubernetes.io/instance: {{ .Release.Name }}
+  
+  # Disable session affinity for better load distribution
+  sessionAffinity: None
