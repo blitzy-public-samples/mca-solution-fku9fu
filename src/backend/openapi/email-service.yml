@@ -1,0 +1,278 @@
+# Human Tasks:
+# 1. Review and configure API rate limiting settings
+# 2. Set up API monitoring and alerting
+# 3. Configure API authentication service with JWT
+# 4. Document API endpoints in developer portal
+
+openapi: 3.0.0
+
+# Requirement: Integration Layer - REST APIs and webhooks for system integration
+info:
+  title: Dollar Funding MCA Email Service API
+  version: 1.0.0
+  description: REST API for processing MCA application emails
+  contact:
+    name: Dollar Funding API Support
+    email: api-support@dollarfunding.com
+  license:
+    name: Proprietary
+    
+servers:
+  - url: /api/v1
+    description: Production API server
+  - url: /api/v1/staging
+    description: Staging API server
+
+# Requirement: Integration Layer - REST APIs and webhooks for system integration
+tags:
+  - name: Emails
+    description: Email processing operations
+  - name: Monitoring
+    description: Email monitoring control operations
+
+# Global security scheme using JWT
+security:
+  - bearerAuth: []
+
+paths:
+  # Requirement: Email Processing - Automated monitoring and processing of submissions@dollarfunding.com
+  /emails:
+    post:
+      tags:
+        - Emails
+      summary: Process an email message
+      description: Submit an email for automated processing and document classification
+      operationId: processEmail
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/EmailMessage'
+      responses:
+        '202':
+          description: Email accepted for processing
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/EmailProcessingResponse'
+        '400':
+          description: Invalid request format or validation error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '401':
+          description: Unauthorized - Invalid or missing authentication token
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '413':
+          description: Payload too large - Attachment size exceeds limit
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '429':
+          description: Too many requests - Rate limit exceeded
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+  # Requirement: Processing Time - < 5 minutes per application
+  /emails/{messageId}:
+    get:
+      tags:
+        - Emails
+      summary: Get email processing status
+      description: Retrieve the current processing status of an email message
+      operationId: getEmailStatus
+      parameters:
+        - name: messageId
+          in: path
+          required: true
+          description: Unique identifier of the email message
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Email status retrieved successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/EmailStatus'
+        '404':
+          description: Email message not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '429':
+          description: Too many requests - Rate limit exceeded
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+  # Requirement: Email Processing - Automated monitoring and processing of submissions@dollarfunding.com
+  /monitoring/start:
+    put:
+      tags:
+        - Monitoring
+      summary: Start email monitoring
+      description: Start automated monitoring of the submissions inbox
+      operationId: startMonitoring
+      responses:
+        '200':
+          description: Email monitoring started successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  status:
+                    type: string
+                    enum: [STARTED]
+                  message:
+                    type: string
+        '409':
+          description: Monitoring already active
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+  /monitoring/stop:
+    put:
+      tags:
+        - Monitoring
+      summary: Stop email monitoring
+      description: Stop automated monitoring of the submissions inbox
+      operationId: stopMonitoring
+      responses:
+        '200':
+          description: Email monitoring stopped successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  status:
+                    type: string
+                    enum: [STOPPED]
+                  message:
+                    type: string
+        '409':
+          description: Monitoring already stopped
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+components:
+  schemas:
+    EmailMessage:
+      type: object
+      properties:
+        messageId:
+          type: string
+          description: Unique identifier for the email message
+        from:
+          type: string
+          format: email
+          description: Email sender address
+        subject:
+          type: string
+          description: Email subject line
+        receivedDate:
+          type: string
+          format: date-time
+          description: Timestamp when email was received
+        processingStatus:
+          type: string
+          enum: [PENDING, PROCESSING, COMPLETED, FAILED]
+          description: Current processing status
+        attachments:
+          type: array
+          items:
+            $ref: '#/components/schemas/EmailAttachment'
+          description: Array of email attachments
+      required:
+        - messageId
+        - from
+        - subject
+        - receivedDate
+
+    EmailAttachment:
+      type: object
+      properties:
+        filename:
+          type: string
+          description: Original filename of the attachment
+        contentType:
+          type: string
+          description: MIME type of the attachment
+        size:
+          type: number
+          description: File size in bytes
+        checksum:
+          type: string
+          description: SHA-256 checksum of the file content
+        type:
+          type: string
+          enum: [APPLICATION, BANK_STATEMENT, IDENTIFICATION, BUSINESS_LICENSE]
+          description: Classified type of the attachment
+      required:
+        - filename
+        - contentType
+        - size
+        - type
+
+    EmailStatus:
+      type: object
+      properties:
+        messageId:
+          type: string
+          description: Unique identifier of the email message
+        status:
+          type: string
+          enum: [PENDING, PROCESSING, COMPLETED, FAILED]
+          description: Current processing status
+        timestamp:
+          type: string
+          format: date-time
+          description: Last status update timestamp
+
+    EmailProcessingResponse:
+      type: object
+      properties:
+        messageId:
+          type: string
+          description: Unique identifier of the accepted email
+        status:
+          type: string
+          enum: [ACCEPTED]
+          description: Processing acceptance status
+        timestamp:
+          type: string
+          format: date-time
+          description: Timestamp of acceptance
+
+    ErrorResponse:
+      type: object
+      properties:
+        code:
+          type: string
+          description: Error code for the specific error condition
+        message:
+          type: string
+          description: Human-readable error message
+
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+      description: JWT token authentication
