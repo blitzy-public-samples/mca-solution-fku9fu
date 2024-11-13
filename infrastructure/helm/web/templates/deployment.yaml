@@ -1,0 +1,69 @@
+# Human Tasks:
+# 1. Configure environment-specific values for WEB_REPLICA_COUNT, WEB_IMAGE_REPOSITORY, WEB_IMAGE_TAG, and WEB_IMAGE_PULL_POLICY
+# 2. Verify resource limits align with environment capacity (WEB_CPU_LIMIT, WEB_MEMORY_LIMIT, WEB_CPU_REQUEST, WEB_MEMORY_REQUEST)
+# 3. Configure health check endpoints in NGINX container
+# 4. Set up monitoring and alerting for the deployment metrics
+
+# Kubernetes API version v1.27.0
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ .Values.AppName }}
+  labels:
+    {{- include "generateLabels" "web" | nindent 4 }}
+spec:
+  # Requirement: High Availability - Ensures 99.9% uptime through multi-replica deployment
+  replicas: {{ env "WEB_REPLICA_COUNT" | default .Values.DefaultReplicaCount }}
+  selector:
+    matchLabels:
+      {{- include "generateSelectorLabels" . | nindent 6 }}
+  # Requirement: High Availability - Zero-downtime updates using RollingUpdate strategy
+  strategy:
+    type: RollingUpdate
+    rollingUpdate:
+      maxSurge: 1
+      maxUnavailable: 0
+  template:
+    metadata:
+      labels:
+        {{- include "generateSelectorLabels" . | nindent 8 }}
+    spec:
+      containers:
+        # Requirement: Web Frontend Deployment - Deploys React-based web application with Material-UI and Redux
+        - name: web
+          image: {{ env "WEB_IMAGE_REPOSITORY" | default .Values.DefaultImageRepository }}:{{ env "WEB_IMAGE_TAG" | default .Values.DefaultImageTag }}
+          imagePullPolicy: {{ env "WEB_IMAGE_PULL_POLICY" | default .Values.DefaultImagePullPolicy }}
+          ports:
+            - containerPort: 80
+              protocol: TCP
+          # Requirement: Resource Management - Implements resource requests and limits
+          resources:
+            limits:
+              cpu: {{ env "WEB_CPU_LIMIT" | default "500m" }}
+              memory: {{ env "WEB_MEMORY_LIMIT" | default "512Mi" }}
+            requests:
+              cpu: {{ env "WEB_CPU_REQUEST" | default "250m" }}
+              memory: {{ env "WEB_MEMORY_REQUEST" | default "256Mi" }}
+          # Requirement: High Availability - Health checks for container readiness
+          livenessProbe:
+            httpGet:
+              path: /health
+              port: 80
+            initialDelaySeconds: 30
+            periodSeconds: 30
+          readinessProbe:
+            httpGet:
+              path: /health
+              port: 80
+            initialDelaySeconds: 15
+            periodSeconds: 15
+          # Requirement: Static Content Distribution - Configures NGINX for serving static content
+          env:
+            - name: NGINX_WORKER_PROCESSES
+              value: "auto"
+            - name: NGINX_WORKER_CONNECTIONS
+              value: "1024"
+            - name: NGINX_KEEPALIVE_TIMEOUT
+              value: "65"
+            - name: NGINX_CLIENT_MAX_BODY_SIZE
+              value: "1m"
