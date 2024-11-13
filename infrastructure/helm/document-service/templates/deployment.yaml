@@ -1,0 +1,94 @@
+# Human Tasks:
+# 1. Verify that the container registry (dollarfunding/document-service) exists and has proper access credentials
+# 2. Ensure proper network policies are in place for the health check endpoints
+# 3. Verify node labels match the nodeSelector configuration
+# 4. Review resource quotas at namespace level to accommodate the specified resource limits
+
+# Addresses requirement: Document Processing Service Deployment (4. SYSTEM ARCHITECTURE/4.2.1 Core Components)
+# Implements Python-based document service with horizontal scaling and stateless design
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ template "document-service.fullname" . }}
+  labels:
+    {{- include "document-service.labels" . | nindent 4 }}
+  {{- with .Values.deployment.annotations }}
+  annotations:
+    {{- toYaml . | nindent 4 }}
+  {{- end }}
+
+# Addresses requirement: System Availability (2. SYSTEM OVERVIEW/Success Criteria)
+# Configures high availability deployment with rolling updates and multiple replicas
+spec:
+  replicas: {{ .Values.deployment.replicaCount }}
+  strategy:
+    type: RollingUpdate
+    rollingUpdate:
+      maxSurge: 1
+      maxUnavailable: 0
+  selector:
+    matchLabels:
+      {{- include "document-service.selectorLabels" . | nindent 6 }}
+  template:
+    metadata:
+      labels:
+        {{- include "document-service.labels" . | nindent 8 }}
+      {{- with .Values.deployment.annotations }}
+      annotations:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+    spec:
+      {{- with .Values.podSecurityContext }}
+      securityContext:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      containers:
+        - name: document-service
+          image: "{{ .Values.image.repository }}:{{ .Values.image.tag }}"
+          imagePullPolicy: {{ .Values.image.pullPolicy }}
+          {{- with .Values.securityContext }}
+          securityContext:
+            {{- toYaml . | nindent 12 }}
+          {{- end }}
+          ports:
+            - name: http
+              containerPort: 8000
+              protocol: TCP
+          # Addresses requirement: Processing Performance (2. SYSTEM OVERVIEW/Success Criteria)
+          # Configures resource limits and requests for optimal performance
+          {{- with .Values.resources }}
+          resources:
+            {{- toYaml . | nindent 12 }}
+          {{- end }}
+          env:
+            - name: PYTHONUNBUFFERED
+              value: "1"
+            - name: PYTHONDONTWRITEBYTECODE
+              value: "1"
+            - name: PORT
+              value: "8000"
+          # Health monitoring configuration for high availability
+          {{- with .Values.deployment.livenessProbe }}
+          livenessProbe:
+            {{- toYaml . | nindent 12 }}
+          {{- end }}
+          {{- with .Values.deployment.readinessProbe }}
+          readinessProbe:
+            {{- toYaml . | nindent 12 }}
+          {{- end }}
+      {{- with .Values.nodeSelector }}
+      nodeSelector:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.tolerations }}
+      tolerations:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.affinity }}
+      affinity:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- if .Values.image.pullSecrets }}
+      imagePullSecrets:
+        {{- toYaml .Values.image.pullSecrets | nindent 8 }}
+      {{- end }}
