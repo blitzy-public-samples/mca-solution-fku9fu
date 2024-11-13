@@ -1,0 +1,161 @@
+# Human Tasks:
+# 1. Set up GitHub repository secrets for AWS credentials and OIDC configuration
+# 2. Configure environment-specific deployment approvals in GitHub
+# 3. Set up branch protection rules for main branch
+# 4. Configure AWS IAM roles for OIDC authentication
+# 5. Set up environment-specific EKS cluster access
+
+name: Email Service CI/CD
+
+env:
+  DOCKER_BUILDKIT: 1
+  NODE_VERSION: '18'
+  SERVICE_NAME: 'email-service'
+  ECR_REGISTRY: ${{ steps.login-ecr.outputs.registry }}
+  IMAGE_TAG: ${{ github.sha }}
+
+# Addresses requirement: CI/CD Pipeline
+# Location: 8. INFRASTRUCTURE/8.5 CI/CD PIPELINE/8.5.1 Pipeline Architecture
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - 'src/backend/email-service/**'
+  pull_request:
+    branches:
+      - main
+    paths:
+      - 'src/backend/email-service/**'
+
+jobs:
+  build_and_test:
+    name: Build and Test
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: src/backend/email-service
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v3
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v3
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: 'npm'
+          cache-dependency-path: src/backend/email-service/package-lock.json
+
+      - name: Install dependencies
+        run: npm ci
+
+      # Addresses requirement: Validation Steps
+      # Location: 8. INFRASTRUCTURE/8.5.2 Pipeline Stages
+      - name: Run ESLint
+        run: npm run lint
+
+      - name: Run unit tests
+        run: npm run test:cov
+        env:
+          CI: true
+
+      - name: Run integration tests
+        run: npm run test
+        env:
+          CI: true
+          NODE_ENV: test
+
+      - name: Build TypeScript
+        run: npm run build
+
+  build_and_push_image:
+    name: Build and Push Docker Image
+    needs: build_and_test
+    runs-on: ubuntu-latest
+    permissions:
+      id-token: write
+      contents: read
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v3
+
+      # Addresses requirement: Container Strategy
+      # Location: 8. INFRASTRUCTURE/8.3 CONTAINERIZATION/8.3.1 Container Strategy
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v2
+        with:
+          role-to-assume: ${{ secrets.AWS_ROLE_ARN }}
+          aws-region: ${{ secrets.AWS_REGION }}
+
+      - name: Login to Amazon ECR
+        id: login-ecr
+        uses: aws-actions/amazon-ecr-login@v1
+
+      - name: Build and push Docker image
+        uses: docker/build-push-action@v4
+        with:
+          context: src/backend/email-service
+          file: src/backend/email-service/Dockerfile
+          push: true
+          tags: |
+            ${{ env.ECR_REGISTRY }}/${{ env.SERVICE_NAME }}:${{ env.IMAGE_TAG }}
+            ${{ env.ECR_REGISTRY }}/${{ env.SERVICE_NAME }}:latest
+          cache-from: type=registry,ref=${{ env.ECR_REGISTRY }}/${{ env.SERVICE_NAME }}:latest
+          cache-to: type=inline
+          build-args: |
+            NODE_ENV=production
+
+  deploy:
+    name: Deploy to Environment
+    needs: build_and_push_image
+    runs-on: ubuntu-latest
+    permissions:
+      id-token: write
+      contents: read
+    
+    strategy:
+      matrix:
+        environment: [dev, staging, prod]
+    
+    environment:
+      name: ${{ matrix.environment }}
+      url: ${{ matrix.environment == 'prod' && 'https://api.dollarfunding.com' || matrix.environment == 'staging' && 'https://staging-api.dollarfunding.com' || 'https://dev-api.dollarfunding.com' }}
+
+    # Addresses requirement: Deployment Strategy
+    # Location: 8. INFRASTRUCTURE/8.5.2 Pipeline Stages
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v3
+
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v2
+        with:
+          role-to-assume: ${{ secrets.AWS_ROLE_ARN }}
+          aws-region: ${{ secrets.AWS_REGION }}
+
+      - name: Update kubeconfig
+        run: |
+          aws eks update-kubeconfig --name ${{ secrets.EKS_CLUSTER_NAME }} --region ${{ secrets.AWS_REGION }}
+
+      - name: Deploy to Kubernetes
+        run: |
+          # Update image tag in deployment manifest
+          sed -i "s|\${ECR_REGISTRY}|${{ env.ECR_REGISTRY }}|g" src/backend/k8s/email-service.yml
+          sed -i "s|\${IMAGE_TAG}|${{ env.IMAGE_TAG }}|g" src/backend/k8s/email-service.yml
+          
+          # Apply environment-specific configurations
+          kubectl apply -f src/backend/k8s/email-service.yml
+          
+          # Verify deployment
+          kubectl rollout status deployment/email-service -n mca-system --timeout=300s
+
+      - name: Verify deployment health
+        run: |
+          # Wait for service to be ready
+          kubectl wait --for=condition=available --timeout=300s deployment/email-service -n mca-system
+          
+          # Verify health endpoint
+          SERVICE_IP=$(kubectl get svc email-service -n mca-system -o jsonpath='{.status.loadBalancer.ingress[0].ip}')
+          curl -f http://${SERVICE_IP}/health || exit 1
