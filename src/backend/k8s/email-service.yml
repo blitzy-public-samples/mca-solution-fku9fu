@@ -1,0 +1,93 @@
+# Human Tasks:
+# 1. Configure AWS ECR registry URL in deployment pipeline (${ECR_REGISTRY})
+# 2. Set up image versioning strategy and tag management (${IMAGE_TAG})
+# 3. Review and adjust resource limits based on actual usage metrics
+# 4. Verify health check endpoints are implemented in the email service
+# 5. Configure network policies to restrict service communication
+
+# Kubernetes version: 1.27.x
+
+# Addresses requirement: Email Processing
+# Location: 2. SYSTEM OVERVIEW/High-Level Description
+# Description: Deployment configuration for automated email processing service
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: email-service
+  namespace: mca-system
+  labels:
+    app: email-service
+    component: backend
+spec:
+  # Addresses requirement: System Availability
+  # Location: 2. SYSTEM OVERVIEW/Success Criteria
+  # Description: Ensures 99.9% uptime through multiple replicas
+  replicas: 3
+  selector:
+    matchLabels:
+      app: email-service
+  template:
+    metadata:
+      labels:
+        app: email-service
+    spec:
+      containers:
+        - name: email-service
+          image: ${ECR_REGISTRY}/email-service:${IMAGE_TAG}
+          ports:
+            - containerPort: 3000
+              name: http
+          # Addresses requirement: Processing Time
+          # Location: 2. SYSTEM OVERVIEW/Success Criteria
+          # Description: Resource allocation to ensure < 5 minutes processing time
+          resources:
+            requests:
+              cpu: "500m"
+              memory: "512Mi"
+            limits:
+              cpu: "1000m"
+              memory: "1Gi"
+          env:
+            - name: NODE_ENV
+              value: "production"
+          envFrom:
+            - configMapRef:
+                name: email-service-config
+            - secretRef:
+                name: email-credentials
+            - secretRef:
+                name: rabbitmq-credentials
+          # Health monitoring configuration
+          livenessProbe:
+            httpGet:
+              path: /health
+              port: http
+            initialDelaySeconds: 30
+            periodSeconds: 15
+          readinessProbe:
+            httpGet:
+              path: /health
+              port: http
+            initialDelaySeconds: 15
+            periodSeconds: 10
+
+---
+# Service configuration for internal cluster communication
+apiVersion: v1
+kind: Service
+metadata:
+  name: email-service
+  namespace: mca-system
+  labels:
+    app: email-service
+    component: backend
+spec:
+  type: ClusterIP
+  ports:
+    - port: 80
+      targetPort: http
+      protocol: TCP
+      name: http
+  selector:
+    app: email-service
