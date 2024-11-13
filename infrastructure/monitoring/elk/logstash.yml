@@ -1,0 +1,46 @@
+# Human Tasks:
+# 1. Set environment variables: HOSTNAME, ELASTICSEARCH_HOSTS, MONITORING_USERNAME, MONITORING_PASSWORD
+# 2. Create and mount SSL certificates at /etc/logstash/certs/
+# 3. Ensure /var/lib/logstash and /var/log/logstash directories exist with correct permissions
+# 4. Create pipeline configuration directory at /etc/logstash/conf.d/
+
+# Node Settings
+# Requirement: System Availability - Supports 99.9% uptime through reliable log processing
+node.name: ${HOSTNAME}
+
+# Path Settings
+# Requirement: Log Collection - Centralized collection and processing of logs
+path.data: /var/lib/logstash
+path.logs: /var/log/logstash
+path.config: /etc/logstash/conf.d
+
+# HTTP API Settings
+# Requirement: System Availability - Service health monitoring endpoint
+http.host: 0.0.0.0
+http.port: 9600
+
+# Logging Settings
+# Requirement: Log Collection - Operational logging for troubleshooting
+log.level: info
+
+# Pipeline Settings
+# Requirement: System Availability - Optimized for high throughput and reliability
+pipeline.workers: 2
+pipeline.batch.size: 125
+pipeline.batch.delay: 50
+
+# Queue Settings
+# Requirement: System Availability - Persistent queue for data durability
+queue.type: persisted
+
+# Monitoring Settings
+# Requirement: Security Monitoring - Integration with Elasticsearch monitoring
+xpack.monitoring.enabled: true
+xpack.monitoring.elasticsearch.hosts: ${ELASTICSEARCH_HOSTS}
+
+# Security Settings
+# Requirement: Security Monitoring - Secure communication with Elasticsearch
+xpack.monitoring.elasticsearch.username: ${MONITORING_USERNAME}
+xpack.monitoring.elasticsearch.password: ${MONITORING_PASSWORD}
+xpack.monitoring.elasticsearch.ssl.certificate_authority: /etc/logstash/certs/ca.crt
+xpack.monitoring.elasticsearch.ssl.verification_mode: certificate
