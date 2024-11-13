@@ -1,0 +1,98 @@
+# Human Tasks:
+# 1. Verify environment variable substitution mechanism for ${ENVIRONMENT} is configured in deployment pipeline
+# 2. Review and adjust resource configurations for each environment (dev/staging/prod)
+# 3. Ensure monitoring endpoints are properly secured in production
+# 4. Verify CORS settings match the actual domain names in each environment
+# 5. Configure network policies to restrict access to these ConfigMaps
+
+# Kubernetes version: 1.27.x
+
+# Addresses requirement: Configuration Management
+# Location: Technical Specification/System Architecture/Component Details
+# Description: Core service configuration for Spring Boot application
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: core-service-config
+  namespace: mca-system
+  labels:
+    app: core-service
+    environment: ${ENVIRONMENT}
+data:
+  application.yml: |
+    # Core service configuration
+    server:
+      port: 8080
+      compression.enabled: true
+    spring:
+      application.name: core-service
+      jpa.hibernate.ddl-auto: validate
+      flyway.enabled: true
+    management.endpoints.web.exposure.include: health,metrics,prometheus
+
+# Addresses requirement: Environment Configuration
+# Location: Technical Specification/Infrastructure/Deployment Environment
+# Description: Document processing service configuration
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: document-service-config
+  namespace: mca-system
+  labels:
+    app: document-service
+    environment: ${ENVIRONMENT}
+data:
+  settings.py: |
+    # Document service configuration
+    DEBUG=False
+    ALLOWED_HOSTS=['*']
+    CORS_ORIGIN_WHITELIST=['https://api.dollarfunding.com']
+    OCR_BATCH_SIZE=10
+    MAX_DOCUMENT_SIZE_MB=25
+    SUPPORTED_FORMATS=['pdf','png','jpg','jpeg','tiff']
+
+# Addresses requirement: Configuration Management
+# Location: Technical Specification/System Architecture/Component Details
+# Description: Email processing service configuration
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: email-service-config
+  namespace: mca-system
+  labels:
+    app: email-service
+    environment: ${ENVIRONMENT}
+data:
+  email.config.ts: |
+    // Email service configuration
+    export default {
+      monitoredMailbox: 'submissions@dollarfunding.com',
+      pollInterval: 60000,
+      maxAttachmentSize: 26214400,
+      allowedFileTypes: ['pdf','doc','docx','xls','xlsx']
+    }
+
+# Addresses requirement: Environment Configuration
+# Location: Technical Specification/Infrastructure/Deployment Environment
+# Description: Notification service webhook configuration
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: notification-service-config
+  namespace: mca-system
+  labels:
+    app: notification-service
+    environment: ${ENVIRONMENT}
+data:
+  webhook.config.ts: |
+    // Notification service configuration
+    export default {
+      maxRetries: 3,
+      retryDelay: 5000,
+      webhookTimeout: 10000,
+      maxPayloadSize: 5242880
+    }
