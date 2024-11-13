@@ -1,0 +1,134 @@
+# Human Tasks:
+# 1. Configure AWS ECR registry access and credentials
+# 2. Set up document-service-secrets in Kubernetes with required credentials
+# 3. Configure GPU nodes in EKS cluster for OCR processing
+# 4. Verify resource quotas in the mca-system namespace
+
+# Kubernetes version: 1.27.x
+# Addresses requirements:
+# - Document Processing: Containerized deployment with Python/TensorFlow stack
+# - System Availability: 99.9% uptime through 3 replicas and health checks
+# - Processing Time: Optimized container with 2Gi-4Gi memory and 1-2 CPU cores
+# - OCR Performance: GPU-enabled configuration for processing
+
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: document-service
+  namespace: mca-system
+  labels:
+    app: document-service
+    environment: ${ENVIRONMENT}
+spec:
+  replicas: 3  # High availability with 3 replicas for 99.9% uptime
+  selector:
+    matchLabels:
+      app: document-service
+  template:
+    metadata:
+      labels:
+        app: document-service
+    spec:
+      # Node selector for GPU-enabled instances
+      nodeSelector:
+        accelerator: gpu
+      # Ensure pods are distributed across nodes
+      affinity:
+        podAntiAffinity:
+          preferredDuringSchedulingIgnoredDuringExecution:
+          - weight: 100
+            podAffinityTerm:
+              labelSelector:
+                matchExpressions:
+                - key: app
+                  operator: In
+                  values:
+                  - document-service
+              topologyKey: kubernetes.io/hostname
+      containers:
+      - name: document-service
+        image: ${ECR_REGISTRY}/document-service:${IMAGE_TAG}
+        ports:
+        - containerPort: 8000
+          name: http
+        # Resource limits for optimal processing time
+        resources:
+          requests:
+            cpu: "1000m"    # 1 CPU core minimum
+            memory: "2Gi"   # 2GB minimum memory
+            nvidia.com/gpu: "1"  # Request GPU for OCR processing
+          limits:
+            cpu: "2000m"    # 2 CPU cores maximum
+            memory: "4Gi"   # 4GB maximum memory
+            nvidia.com/gpu: "1"  # Limit to 1 GPU per pod
+        # Health checks for high availability
+        livenessProbe:
+          httpGet:
+            path: /health
+            port: 8000
+          initialDelaySeconds: 30
+          periodSeconds: 20
+          timeoutSeconds: 5
+          failureThreshold: 3
+        readinessProbe:
+          httpGet:
+            path: /health
+            port: 8000
+          initialDelaySeconds: 15
+          periodSeconds: 10
+          timeoutSeconds: 3
+          failureThreshold: 2
+        env:
+        - name: PORT
+          value: "8000"
+        - name: NODE_ENV
+          value: ${ENVIRONMENT}
+        - name: CACHE_ENABLED
+          value: "true"
+        - name: CACHE_TYPE
+          value: "memory"
+        - name: CACHE_MAX_SIZE
+          value: "1000"
+        - name: CACHE_TTL
+          value: "3600"
+        - name: OCR_BATCH_SIZE
+          value: "10"
+        - name: MAX_FILE_SIZE
+          value: "10485760"  # 10MB max file size
+        envFrom:
+        - secretRef:
+            name: document-service-secrets
+        # Volume mounts for temporary processing
+        volumeMounts:
+        - name: tmp-processing
+          mountPath: /tmp/processing
+      volumes:
+      - name: tmp-processing
+        emptyDir: {}
+      # Security context for container
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 1000
+        fsGroup: 2000
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: document-service
+  namespace: mca-system
+  labels:
+    app: document-service
+  annotations:
+    prometheus.io/scrape: "true"
+    prometheus.io/port: "8000"
+    prometheus.io/path: "/metrics"
+spec:
+  type: ClusterIP
+  ports:
+  - port: 8000
+    targetPort: 8000
+    protocol: TCP
+    name: http
+  selector:
+    app: document-service
