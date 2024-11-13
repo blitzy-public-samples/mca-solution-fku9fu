@@ -1,0 +1,26 @@
+# Addresses requirement: Email Processing - Enables network access to the email service for automated monitoring 
+# and processing of submissions@dollarfunding.com
+apiVersion: v1
+kind: Service
+
+metadata:
+  name: {{ include "email-service.fullname" . }}
+  labels:
+    {{- include "email-service.labels" . | nindent 4 }}
+  # Addresses requirement: System Availability - Supports monitoring for 99.9% uptime requirement
+  annotations:
+    prometheus.io/scrape: "{{ .Values.monitoring.enabled }}"
+    prometheus.io/port: "{{ .Values.service.port }}"
+
+# Addresses requirement: Container Strategy - Defines service networking for containerized email processing component
+spec:
+  # Service type can be configured via values.yaml, defaults to ClusterIP for internal access
+  type: {{ .Values.service.type }}
+  ports:
+    - port: {{ .Values.service.port }}
+      targetPort: http
+      protocol: TCP
+      name: http
+  # Selector uses consistent labeling scheme defined by Helm chart
+  selector:
+    {{- include "email-service.selectorLabels" . | nindent 4 }}
