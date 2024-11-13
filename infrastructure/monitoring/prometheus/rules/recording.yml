@@ -1,0 +1,45 @@
+# Requirement: Web Interface Accessibility (4.5 Deployment Architecture)
+# Kubernetes service configuration for routing traffic to web UI pods through CDN and load balancer
+apiVersion: v1
+kind: Service
+
+metadata:
+  # Generate consistent name based on chart metadata
+  name: {{ .Chart.Name }}-web
+  # Standard Kubernetes labels for resource management and identification
+  labels:
+    app.kubernetes.io/name: {{ .Chart.Name }}
+    helm.sh/chart: {{ .Chart.Name }}-{{ .Chart.Version }}
+    app.kubernetes.io/instance: {{ .Release.Name }}
+    app.kubernetes.io/managed-by: {{ .Release.Service }}
+  annotations:
+    # Requirement: System Architecture (4.1 High-Level Architecture)
+    # Annotations for CDN and API Gateway integration
+    service.beta.kubernetes.io/aws-load-balancer-backend-protocol: "http"
+    service.beta.kubernetes.io/aws-load-balancer-ssl-ports: "https"
+    service.beta.kubernetes.io/aws-load-balancer-connection-idle-timeout: "60"
+
+# Requirement: High Availability (2. SYSTEM OVERVIEW/Success Criteria)
+# Service configuration supporting 99.9% uptime through proper pod targeting
+spec:
+  # Using ClusterIP for internal pod-to-pod communication
+  # This allows integration with API Gateway and CDN while maintaining security
+  type: ClusterIP
+  ports:
+    - port: 80
+      targetPort: 80
+      protocol: TCP
+      name: http
+  # Selector ensures traffic is routed to the correct web UI pods
+  selector:
+    app.kubernetes.io/name: {{ .Chart.Name }}
+    app.kubernetes.io/instance: {{ .Release.Name }}
+  # Enable session affinity for better user experience
+  sessionAffinity: ClientIP
+  sessionAffinityConfig:
+    clientIP:
+      timeoutSeconds: 10800  # 3 hour session timeout
+  # Ensure service has high availability configuration
+  publishNotReadyAddresses: false
+  # Configure internal traffic policy for optimal routing
+  internalTrafficPolicy: Cluster
