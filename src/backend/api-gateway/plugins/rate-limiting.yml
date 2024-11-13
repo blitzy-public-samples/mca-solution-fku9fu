@@ -1,0 +1,62 @@
+# Human Tasks:
+# 1. Set up Redis instance with SSL certificates
+# 2. Configure REDIS_PASSWORD environment variable in Kong deployment
+# 3. Verify Redis connectivity and SSL certificate validation
+# 4. Monitor rate limiting metrics in Kong Admin API
+
+# Implements rate limiting of 1000 requests/hour per client with burst limit of 50 requests/minute
+# REQ-5.3.1-API-Rate-Limiting
+name: rate-limiting
+
+# Configuration for Kong API Gateway rate limiting plugin
+# REQ-4.2.1-API-Gateway-Configuration
+config:
+  # Maximum number of requests per minute (burst limit)
+  minute: 50
+  
+  # Maximum number of requests per hour
+  hour: 1000
+  
+  # Identify consumers for rate limiting
+  limit_by: consumer
+  
+  # Use Redis for distributed rate limiting across Kong nodes
+  policy: redis
+  
+  # Continue serving requests if Redis is down
+  fault_tolerant: true
+  
+  # Show remaining quota in response headers
+  hide_client_headers: false
+  
+  # Redis connection configuration
+  redis:
+    # Redis service hostname
+    host: redis
+    
+    # Redis port
+    port: 6379
+    
+    # Connection timeout in milliseconds
+    timeout: 2000
+    
+    # Redis database number
+    database: 0
+    
+    # Redis password from environment variable
+    password: ${REDIS_PASSWORD}
+    
+    # Enable SSL/TLS for Redis connection
+    ssl: true
+    
+    # Verify Redis SSL certificate
+    ssl_verify: true
+  
+  # HTTP status code for rate limit exceeded
+  error_code: 429
+  
+  # Error message when rate limit is exceeded
+  error_message: "API rate limit exceeded. Please try again later."
+  
+  # Header containing consumer identifier
+  header_name: X-Consumer-ID
