@@ -1,0 +1,93 @@
+# Addresses requirement: Email Processing - Automated monitoring and processing of submissions@dollarfunding.com
+# Addresses requirement: System Availability - 99.9% uptime through proper deployment configuration
+# Addresses requirement: Container Strategy - Email Service deployment with specified resource limits
+# Addresses requirement: Infrastructure Requirements - Multi-AZ deployment
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ include "email-service.fullname" . }}
+  labels:
+    {{- include "email-service.labels" . | nindent 4 }}
+spec:
+  # Ensures minimum high availability with multiple replicas
+  replicas: {{ .Values.replicaCount }}
+  selector:
+    matchLabels:
+      {{- include "email-service.selectorLabels" . | nindent 6 }}
+  # Configures zero-downtime rolling updates
+  strategy:
+    type: RollingUpdate
+    rollingUpdate:
+      maxSurge: 1
+      maxUnavailable: 0
+  template:
+    metadata:
+      labels:
+        {{- include "email-service.selectorLabels" . | nindent 8 }}
+      annotations:
+        # Prometheus monitoring configuration
+        prometheus.io/scrape: "{{ .Values.monitoring.enabled }}"
+        prometheus.io/port: "3000"
+        prometheus.io/path: "/metrics"
+    spec:
+      # Pod security context for file system permissions
+      {{- with .Values.podSecurityContext }}
+      securityContext:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      containers:
+        - name: {{ .Chart.Name }}
+          # Container image configuration
+          image: "{{ .Values.image.repository }}:{{ .Values.image.tag }}"
+          imagePullPolicy: {{ .Values.image.pullPolicy }}
+          # Container security context
+          {{- with .Values.securityContext }}
+          securityContext:
+            {{- toYaml . | nindent 12 }}
+          {{- end }}
+          # Service port configuration
+          ports:
+            - name: http
+              containerPort: 3000
+              protocol: TCP
+          # Environment variables for email service configuration
+          env:
+            - name: NODE_ENV
+              value: "{{ .Values.env.nodeEnv }}"
+            - name: EMAIL_HOST
+              valueFrom:
+                secretKeyRef:
+                  name: "{{ include "email-service.fullname" . }}-secrets"
+                  key: emailHost
+            - name: EMAIL_PORT
+              value: "{{ .Values.env.emailImapPort }}"
+            - name: EMAIL_POLL_INTERVAL
+              value: "{{ .Values.env.emailPollInterval }}"
+            - name: EMAIL_MAX_ATTACHMENT_SIZE
+              value: "{{ .Values.env.emailMaxAttachmentSize }}"
+          # Resource limits and requests
+          resources:
+            {{- toYaml .Values.resources | nindent 12 }}
+          # Health check configuration
+          livenessProbe:
+            {{- toYaml .Values.livenessProbe | nindent 12 }}
+          readinessProbe:
+            {{- toYaml .Values.readinessProbe | nindent 12 }}
+      # Pod distribution and scheduling configuration
+      {{- with .Values.nodeSelector }}
+      nodeSelector:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.affinity }}
+      affinity:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.tolerations }}
+      tolerations:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      # Image pull secrets if required
+      {{- if .Values.image.pullSecrets }}
+      imagePullSecrets:
+        {{- toYaml .Values.image.pullSecrets | nindent 8 }}
+      {{- end }}
