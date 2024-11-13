@@ -1,0 +1,24 @@
+# Kubernetes API version v1.27.0
+apiVersion: v1
+kind: Service
+metadata:
+  # Requirement: Web Frontend Access - Service name for the React-based web application
+  name: {{ template "web.fullname" . }}
+  labels:
+    {{- include "web.labels" . | nindent 4 }}
+spec:
+  # Requirement: High Availability - Service type configuration for internal cluster access
+  # Default to ClusterIP for internal access, configurable via values.yaml
+  type: {{ .Values.service.type }}
+  
+  # Requirement: Load Balancing - Port configuration for web frontend service
+  ports:
+    - port: {{ .Values.service.port }}
+      targetPort: 80
+      protocol: TCP
+      name: http
+  
+  # Requirement: Web Frontend Access - Selector labels to target web frontend pods
+  # Uses selector labels from deployment template for consistency
+  selector:
+    {{- include "web.selectorLabels" . | nindent 4 }}
