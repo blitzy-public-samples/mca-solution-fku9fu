@@ -1,0 +1,36 @@
+# Chart.yaml for Kong API Gateway deployment
+# Implements requirements from:
+# - API Gateway Configuration (4.2.1): Kong API Gateway implementation for routing, authentication, rate limiting
+# - High Availability (4.5): Multi-AZ deployment with auto-scaling capabilities
+# - Security Controls (7.3.2): WAF, rate limiting, and authentication implementation
+
+apiVersion: v2
+name: api-gateway
+description: Kong API Gateway Helm chart for Dollar Funding MCA Application Processing System
+type: application
+version: 1.0.0
+appVersion: "3.4.0"
+kubeVersion: ">=1.24.0-0"
+
+keywords:
+  - api-gateway
+  - kong
+  - routing
+  - authentication
+  - rate-limiting
+  - high-availability
+
+maintainers:
+  - name: Dollar Funding DevOps
+    email: devops@dollarfunding.com
+
+# Dependencies
+dependencies:
+  - name: kong
+    version: 3.4.x
+    repository: https://charts.konghq.com
+    condition: kong.enabled
+  - name: redis
+    version: 17.x
+    repository: https://charts.bitnami.com/bitnami
+    condition: redis.enabled
