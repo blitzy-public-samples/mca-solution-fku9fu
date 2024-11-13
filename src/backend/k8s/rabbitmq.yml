@@ -1,0 +1,168 @@
+# Human Tasks:
+# 1. Verify cluster storage class 'standard' exists and supports the required storage capacity
+# 2. Configure network policies to restrict access to RabbitMQ ports
+# 3. Review and adjust resource limits based on actual workload requirements
+# 4. Implement proper log rotation and monitoring
+# 5. Set up backup strategy for persistent volumes
+# 6. Configure SSL/TLS certificates if required for production
+
+# Kubernetes version: 1.27.x
+# RabbitMQ version: 3.12.x
+
+# Addresses requirement: Asynchronous Communication
+# Location: Technical Specification/System Architecture/Communication Patterns
+# Description: Event-driven architecture implementation using message queues
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: rabbitmq
+  namespace: mca-system
+  labels:
+    app: rabbitmq
+    component: message-broker
+  annotations:
+    service.kubernetes.io/description: "RabbitMQ message broker service for asynchronous communication"
+spec:
+  type: ClusterIP
+  ports:
+    - port: 5672
+      targetPort: 5672
+      name: amqp
+      protocol: TCP
+    - port: 15672
+      targetPort: 15672
+      name: management
+      protocol: TCP
+  selector:
+    app: rabbitmq
+
+# Addresses requirement: Message Queue Infrastructure
+# Location: Technical Specification/Technology Stack/Databases & Storage
+# Description: RabbitMQ deployment with clustering and high availability
+---
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  name: rabbitmq
+  namespace: mca-system
+  labels:
+    app: rabbitmq
+    component: message-broker
+spec:
+  serviceName: rabbitmq
+  replicas: 3
+  selector:
+    matchLabels:
+      app: rabbitmq
+  template:
+    metadata:
+      labels:
+        app: rabbitmq
+      annotations:
+        prometheus.io/scrape: "true"
+        prometheus.io/port: "15692"
+    spec:
+      terminationGracePeriodSeconds: 60
+      containers:
+        - name: rabbitmq
+          image: rabbitmq:3.12-management
+          ports:
+            - containerPort: 5672
+              name: amqp
+              protocol: TCP
+            - containerPort: 15672
+              name: management
+              protocol: TCP
+            - containerPort: 4369
+              name: epmd
+              protocol: TCP
+            - containerPort: 25672
+              name: clustering
+              protocol: TCP
+          envFrom:
+            - secretRef:
+                name: rabbitmq-credentials
+          env:
+            - name: RABBITMQ_ERLANG_COOKIE
+              valueFrom:
+                secretRef:
+                  name: rabbitmq-credentials
+                  key: rabbitmq-erlang-cookie
+            - name: RABBITMQ_USE_LONGNAME
+              value: "true"
+            - name: RABBITMQ_NODENAME
+              value: "rabbit@$(POD_NAME).rabbitmq.mca-system.svc.cluster.local"
+            - name: POD_NAME
+              valueFrom:
+                fieldRef:
+                  fieldPath: metadata.name
+            - name: POD_NAMESPACE
+              valueFrom:
+                fieldRef:
+                  fieldPath: metadata.namespace
+          resources:
+            requests:
+              memory: "1Gi"
+              cpu: "500m"
+            limits:
+              memory: "2Gi"
+              cpu: "1000m"
+          livenessProbe:
+            tcpSocket:
+              port: amqp
+            initialDelaySeconds: 30
+            periodSeconds: 10
+            timeoutSeconds: 5
+            successThreshold: 1
+            failureThreshold: 3
+          readinessProbe:
+            tcpSocket:
+              port: amqp
+            initialDelaySeconds: 10
+            periodSeconds: 5
+            timeoutSeconds: 3
+            successThreshold: 1
+            failureThreshold: 3
+          volumeMounts:
+            - name: rabbitmq-data
+              mountPath: /var/lib/rabbitmq/mnesia
+            - name: rabbitmq-config
+              mountPath: /etc/rabbitmq/conf.d
+          lifecycle:
+            preStop:
+              exec:
+                command: ["rabbitmqctl", "stop"]
+      volumes:
+        - name: rabbitmq-config
+          configMap:
+            name: core-service-config
+            items:
+              - key: rabbitmq.conf
+                path: rabbitmq.conf
+  volumeClaimTemplates:
+    - metadata:
+        name: rabbitmq-data
+        labels:
+          app: rabbitmq
+      spec:
+        accessModes: ["ReadWriteOnce"]
+        storageClassName: "standard"
+        resources:
+          requests:
+            storage: "10Gi"
+
+# Addresses requirement: System Integration
+# Location: Technical Specification/System Overview/Integration Layer
+# Description: Message broker for reliable communication between microservices
+---
+apiVersion: policy/v1
+kind: PodDisruptionBudget
+metadata:
+  name: rabbitmq-pdb
+  namespace: mca-system
+spec:
+  minAvailable: 2
+  selector:
+    matchLabels:
+      app: rabbitmq
