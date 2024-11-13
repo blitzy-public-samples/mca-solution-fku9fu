@@ -1,0 +1,69 @@
+# Human Tasks:
+# 1. Verify email-service host and port match deployment configuration
+# 2. Ensure SSL certificates are properly configured for HTTPS endpoints
+# 3. Validate JWT configuration with Auth0 tenant settings
+# 4. Test rate limiting configuration with expected traffic patterns
+
+# Kong API Gateway Route Configuration v3.4.x
+# Requirements Addressed:
+# - Email Processing (2. SYSTEM OVERVIEW): Routes for submissions@dollarfunding.com processing
+# - API Gateway Configuration (4.2.1): Kong implementation for routing and security
+# - API Security (5.3.1): REST over HTTPS with JWT auth and rate limiting
+
+# Email service configuration
+services:
+  - name: email-service
+    # Internal service URL for email processing microservice
+    url: http://email-service:3000
+    
+    # Route definitions for email processing endpoints
+    routes:
+      # Email submission processing endpoint
+      - name: process-email
+        paths:
+          - /v1/emails
+        methods:
+          - POST
+        strip_path: false
+        preserve_host: true
+        protocols:
+          - https
+
+      # Email processing status endpoint
+      - name: email-status
+        paths:
+          - /v1/emails/{id}/status
+        methods:
+          - GET
+        strip_path: false
+        preserve_host: true
+        protocols:
+          - https
+
+      # Email metadata retrieval endpoint
+      - name: email-metadata
+        paths:
+          - /v1/emails/{id}/metadata
+        methods:
+          - GET
+        strip_path: false
+        preserve_host: true
+        protocols:
+          - https
+
+    # Security and traffic management plugins
+    plugins:
+      # CORS configuration for secure cross-origin access
+      - name: cors
+        config:
+          $ref: ../plugins/cors.yml#/config
+
+      # JWT authentication with Auth0 integration
+      - name: jwt
+        config:
+          $ref: ../plugins/jwt.yml#/config
+
+      # Rate limiting configuration
+      - name: rate-limiting
+        config:
+          $ref: ../plugins/rate-limiting.yml#/config
