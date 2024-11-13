@@ -1,0 +1,30 @@
+# Addresses requirement: Integration Layer (2. SYSTEM OVERVIEW/High-Level Description)
+# Helm chart for webhook notifications and system integration component
+apiVersion: v2
+name: notification-service
+version: 1.0.0
+description: Helm chart for Dollar Funding MCA notification service handling webhook delivery and management with high availability support
+
+# Addresses requirement: Container Strategy (8. INFRASTRUCTURE/8.3 Containerization)
+type: application
+appVersion: "1.0.0"
+
+# Addresses requirement: Integration Layer (2. SYSTEM OVERVIEW/High-Level Description)
+keywords:
+  - notification
+  - webhook
+  - mca
+  - integration
+  - high-availability
+
+# Addresses requirement: Deployment Architecture (4. SYSTEM ARCHITECTURE/4.5 Deployment Architecture)
+maintainers:
+  - name: Dollar Funding DevOps
+    email: devops@dollarfunding.com
+
+# Helm template engine specification
+engine: gotpl
+
+# Addresses requirement: System Availability (2. SYSTEM OVERVIEW/Success Criteria)
+# Dependencies required for high availability deployment
+dependencies: []
