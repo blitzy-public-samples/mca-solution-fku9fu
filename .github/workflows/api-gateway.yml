@@ -1,0 +1,183 @@
+# Human Tasks:
+# 1. Configure AWS IAM roles and permissions for ECR access
+# 2. Set up environment-specific secrets in GitHub repository
+# 3. Configure DNS records for environment URLs
+# 4. Set up monitoring alerts for deployment metrics
+# 5. Review and adjust canary deployment percentage for production
+
+name: API Gateway CI/CD Pipeline
+
+# REQ-8.5.2 Pipeline Stages: Automated build and deployment triggers
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - 'src/backend/api-gateway/**'
+      - 'infrastructure/helm/api-gateway/**'
+  pull_request:
+    branches:
+      - main
+    paths:
+      - 'src/backend/api-gateway/**'
+      - 'infrastructure/helm/api-gateway/**'
+
+env:
+  ECR_REGISTRY: ${{ secrets.AWS_ECR_REGISTRY }}
+  IMAGE_NAME: api-gateway
+  IMAGE_TAG: ${{ github.sha }}
+
+jobs:
+  # REQ-8.5.2 Pipeline Stages: Automated build with security scanning
+  build:
+    name: Build and Test
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v3
+        with:
+          fetch-depth: 0
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v2
+
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v2
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-region: ${{ secrets.AWS_REGION }}
+
+      - name: Login to Amazon ECR
+        uses: aws-actions/amazon-ecr-login@v1
+
+      # REQ-8.3.1 Container Strategy: Multi-stage builds and security scanning
+      - name: Build container image
+        uses: docker/build-push-action@v4
+        with:
+          context: ./src/backend/api-gateway
+          file: ./src/backend/api-gateway/Dockerfile
+          push: false
+          load: true
+          tags: ${{ env.ECR_REGISTRY }}/${{ env.IMAGE_NAME }}:${{ env.IMAGE_TAG }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+      - name: Run Trivy vulnerability scanner
+        uses: aquasecurity/trivy-action@0.10.0
+        with:
+          image-ref: ${{ env.ECR_REGISTRY }}/${{ env.IMAGE_NAME }}:${{ env.IMAGE_TAG }}
+          format: 'table'
+          exit-code: '1'
+          ignore-unfixed: true
+          vuln-type: 'os,library'
+          severity: 'CRITICAL,HIGH'
+
+      - name: Push image to ECR
+        if: github.ref == 'refs/heads/main'
+        uses: docker/build-push-action@v4
+        with:
+          context: ./src/backend/api-gateway
+          push: true
+          tags: ${{ env.ECR_REGISTRY }}/${{ env.IMAGE_NAME }}:${{ env.IMAGE_TAG }}
+
+  # REQ-8.5.2 Pipeline Stages: Automated testing
+  test:
+    name: Integration Tests
+    needs: build
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v3
+
+      - name: Create k8s Kind Cluster
+        uses: helm/kind-action@v1.5
+        with:
+          cluster_name: test-cluster
+
+      - name: Deploy to test environment
+        run: |
+          helm upgrade --install api-gateway ./infrastructure/helm/api-gateway \
+            --set image.repository=${{ env.ECR_REGISTRY }}/${{ env.IMAGE_NAME }} \
+            --set image.tag=${{ env.IMAGE_TAG }} \
+            --wait
+
+      - name: Run integration tests
+        run: |
+          # Wait for services to be ready
+          kubectl wait --for=condition=ready pod -l app=kong --timeout=300s
+          # Run API tests
+          curl -f http://localhost:8000/status
+          # Test rate limiting
+          for i in {1..6}; do curl -f http://localhost:8000/api/v1/test; done
+          # Verify JWT authentication
+          curl -f -H "Authorization: Bearer test-token" http://localhost:8000/api/v1/protected
+
+  # REQ-8.5.3 Deployment Strategy: Environment-specific deployment
+  deploy:
+    name: Deploy
+    needs: test
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        environment: [development, staging, production]
+    environment:
+      name: ${{ matrix.environment }}
+      url: ${{ steps.deploy.outputs.url }}
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v3
+
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v2
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-region: ${{ secrets.AWS_REGION }}
+
+      - name: Configure kubectl
+        run: |
+          echo "${{ secrets.KUBECONFIG_DATA }}" | base64 -d > kubeconfig
+          export KUBECONFIG=./kubeconfig
+
+      # REQ-8.5.3 Deployment Strategy: Environment-specific deployment strategies
+      - name: Deploy to environment
+        id: deploy
+        run: |
+          if [ "${{ matrix.environment }}" == "production" ]; then
+            # Canary deployment for production
+            helm upgrade api-gateway ./infrastructure/helm/api-gateway \
+              --set image.repository=${{ env.ECR_REGISTRY }}/${{ env.IMAGE_NAME }} \
+              --set image.tag=${{ env.IMAGE_TAG }} \
+              --set canary.enabled=true \
+              --set canary.percentage=20 \
+              --wait
+          elif [ "${{ matrix.environment }}" == "staging" ]; then
+            # Blue-green deployment for staging
+            helm upgrade api-gateway ./infrastructure/helm/api-gateway \
+              --set image.repository=${{ env.ECR_REGISTRY }}/${{ env.IMAGE_NAME }} \
+              --set image.tag=${{ env.IMAGE_TAG }} \
+              --set blueGreen.enabled=true \
+              --wait
+          else
+            # Direct deployment for development
+            helm upgrade api-gateway ./infrastructure/helm/api-gateway \
+              --set image.repository=${{ env.ECR_REGISTRY }}/${{ env.IMAGE_NAME }} \
+              --set image.tag=${{ env.IMAGE_TAG }} \
+              --wait
+          fi
+          echo "url=$(kubectl get svc kong-proxy -o jsonpath='{.status.loadBalancer.ingress[0].hostname}')" >> $GITHUB_OUTPUT
+
+      - name: Verify deployment
+        run: |
+          kubectl wait --for=condition=available deployment/kong --timeout=300s
+          curl -f https://${{ steps.deploy.outputs.url }}/status
+
+outputs:
+  image_tag:
+    description: 'Built container image tag'
+    value: ${{ env.IMAGE_TAG }}
+  deployment_url:
+    description: 'Deployed application URL'
+    value: ${{ steps.deploy.outputs.url }}
