@@ -1,0 +1,146 @@
+# Human Tasks:
+# 1. Verify notification-service host and port match deployment configuration
+# 2. Ensure all security plugins are properly configured and active
+# 3. Test rate limiting thresholds in staging environment
+# 4. Validate CORS settings match production domain configuration
+# 5. Monitor API Gateway logs for security plugin effectiveness
+
+# Requirements Addressed:
+# - Integration Layer (2. SYSTEM OVERVIEW): Implements REST APIs and webhooks through API Gateway routing
+# - API Security (5.3.1): Configures secure REST endpoints with JWT authentication and rate limiting
+# - Webhook Configuration (5.3.2): Routes webhook registration and management endpoints
+
+# Kong API Gateway Route Configuration
+# Version: Kong 3.4.x
+
+# Service definition for notification microservice
+services:
+  notification:
+    host: notification-service
+    port: 3000
+    protocol: http
+    connect_timeout: 60000
+    write_timeout: 60000
+    read_timeout: 60000
+
+# Route configurations for notification service endpoints
+routes:
+  # Webhook Registration Endpoint
+  - name: register-webhook
+    paths:
+      - /api/v1/webhooks
+    methods:
+      - POST
+    strip_path: false
+    preserve_host: true
+    protocols:
+      - https
+    service: notification
+    plugins:
+      - name: jwt
+        config: !include ../plugins/jwt.yml
+      - name: rate-limiting
+        config: !include ../plugins/rate-limiting.yml
+      - name: cors
+        config: !include ../plugins/cors.yml
+
+  # Get Webhook Details Endpoint
+  - name: get-webhook
+    paths:
+      - /api/v1/webhooks/{id}
+    methods:
+      - GET
+    strip_path: false
+    preserve_host: true
+    protocols:
+      - https
+    service: notification
+    plugins:
+      - name: jwt
+        config: !include ../plugins/jwt.yml
+      - name: rate-limiting
+        config: !include ../plugins/rate-limiting.yml
+      - name: cors
+        config: !include ../plugins/cors.yml
+
+  # Update Webhook Endpoint
+  - name: update-webhook
+    paths:
+      - /api/v1/webhooks/{id}
+    methods:
+      - PUT
+    strip_path: false
+    preserve_host: true
+    protocols:
+      - https
+    service: notification
+    plugins:
+      - name: jwt
+        config: !include ../plugins/jwt.yml
+      - name: rate-limiting
+        config: !include ../plugins/rate-limiting.yml
+      - name: cors
+        config: !include ../plugins/cors.yml
+
+  # Delete Webhook Endpoint
+  - name: delete-webhook
+    paths:
+      - /api/v1/webhooks/{id}
+    methods:
+      - DELETE
+    strip_path: false
+    preserve_host: true
+    protocols:
+      - https
+    service: notification
+    plugins:
+      - name: jwt
+        config: !include ../plugins/jwt.yml
+      - name: rate-limiting
+        config: !include ../plugins/rate-limiting.yml
+      - name: cors
+        config: !include ../plugins/cors.yml
+
+  # Get Webhook Delivery Status Endpoint
+  - name: get-delivery-status
+    paths:
+      - /api/v1/webhooks/{id}/deliveries/{deliveryId}
+    methods:
+      - GET
+    strip_path: false
+    preserve_host: true
+    protocols:
+      - https
+    service: notification
+    plugins:
+      - name: jwt
+        config: !include ../plugins/jwt.yml
+      - name: rate-limiting
+        config: !include ../plugins/rate-limiting.yml
+      - name: cors
+        config: !include ../plugins/cors.yml
+
+# Global plugin configurations
+plugins:
+  - name: proxy-cache
+    config:
+      content_type:
+        - application/json
+      cache_ttl: 300
+      strategy: memory
+      memory:
+        dictionary_name: proxy_cache
+        
+  - name: request-transformer
+    config:
+      add:
+        headers:
+          - X-Service-Name:notification
+          - X-Request-ID:${request.id}
+
+  - name: response-transformer
+    config:
+      add:
+        headers:
+          - X-Response-Time:${response.time}
+          - X-Kong-Route-Name:${route.name}
