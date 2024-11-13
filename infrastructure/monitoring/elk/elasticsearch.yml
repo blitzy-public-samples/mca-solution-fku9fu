@@ -1,0 +1,51 @@
+# Human Tasks:
+# 1. Generate and store elastic-certificates.p12 in /etc/elasticsearch/certs/
+# 2. Set environment variables: CLUSTER_NAME, HOSTNAME, DISCOVERY_SEED_HOSTS, INITIAL_MASTER_NODES
+# 3. Configure system limits for elasticsearch user (ulimit settings)
+# 4. Ensure /var/lib/elasticsearch and /var/log/elasticsearch directories exist with correct permissions
+
+# Cluster Settings
+# Requirement: System Availability - Supports 99.9% uptime through distributed clustering
+cluster.name: ${CLUSTER_NAME}
+node.name: ${HOSTNAME}
+node.roles: [master, data]
+
+# Path Settings
+# Requirement: Log Aggregation - Centralized storage of system logs
+path.data: /var/lib/elasticsearch
+path.logs: /var/log/elasticsearch
+
+# Network Settings
+# Requirement: System Availability - Multi-node clustering for high availability
+network.host: 0.0.0.0
+http.port: 9200
+
+# Discovery Settings
+# Requirement: System Availability - Fault tolerance through node discovery
+discovery.seed_hosts: ${DISCOVERY_SEED_HOSTS}
+cluster.initial_master_nodes: ${INITIAL_MASTER_NODES}
+
+# Memory Settings
+# Requirement: System Availability - Resource optimization for high performance
+bootstrap.memory_lock: true
+
+# Security Settings
+# Requirement: Security Monitoring - Secure storage with encryption and access controls
+# Requirement: Data Security - Encryption at rest and in transit
+xpack.security.enabled: true
+xpack.security.transport.ssl.enabled: true
+xpack.security.transport.ssl.verification_mode: certificate
+xpack.security.transport.ssl.keystore.path: /etc/elasticsearch/certs/elastic-certificates.p12
+xpack.security.transport.ssl.truststore.path: /etc/elasticsearch/certs/elastic-certificates.p12
+
+# Monitoring Settings
+# Requirement: Log Aggregation - System monitoring and health tracking
+xpack.monitoring.enabled: true
+xpack.monitoring.collection.enabled: true
+
+# Performance Settings
+# Requirement: Log Aggregation - Optimized for high-volume log processing
+indices.memory.index_buffer_size: 30%
+indices.queries.cache.size: 15%
+thread_pool.write.queue_size: 1000
+thread_pool.search.queue_size: 2000
