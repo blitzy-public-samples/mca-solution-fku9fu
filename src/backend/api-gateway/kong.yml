@@ -1,0 +1,69 @@
+# Human Tasks:
+# 1. Verify SSL certificate paths and ensure certificates are properly installed
+# 2. Configure REDIS_PASSWORD environment variable in deployment
+# 3. Validate DNS resolver settings match infrastructure requirements
+# 4. Review memory cache size based on production load requirements
+# 5. Test SSL/TLS configuration with production certificates
+# 6. Verify client body size limits match application requirements
+
+# Requirements Addressed:
+# - API Gateway Configuration (4.2.1): Kong implementation for request routing and security
+# - API Security Architecture (4.4.2): Implements secure API access through WAF, API Gateway
+# - API Design (5.3.1): REST over HTTPS with JWT auth and rate limiting
+
+# Global version and transformation settings
+_format_version: "3.0"
+_transform: true
+
+# Network and listening configuration
+proxy_listen: "0.0.0.0:8000"
+admin_listen: "0.0.0.0:8001"
+
+# Logging configuration
+proxy_access_log: /dev/stdout
+admin_access_log: /dev/stdout
+proxy_error_log: /dev/stderr
+admin_error_log: /dev/stderr
+
+# SSL/TLS Configuration
+ssl: true
+http2: true
+ssl_cert: /etc/kong/ssl/dollarfunding.crt
+ssl_cert_key: /etc/kong/ssl/dollarfunding.key
+
+# DNS Resolver Configuration
+dns_resolver:
+  nameservers:
+    - 8.8.8.8
+    - 8.8.4.4
+  order:
+    - LAST
+    - SRV
+    - A
+    - CNAME
+  valid: 60
+  stale_ttl: 600
+  no_sync: false
+
+# Memory and Performance Settings
+mem_cache_size: "256m"
+client_max_body_size: "10m"
+client_body_buffer_size: "10m"
+
+# Import core service routes and configurations
+services: !include ./routes/core-service.yml#services
+routes: !include ./routes/core-service.yml#routes
+
+# Global plugins configuration
+plugins:
+  # CORS Plugin Configuration
+  - !include ./plugins/cors.yml
+
+  # JWT Authentication Plugin with Auth0 Integration
+  - !include ./plugins/jwt.yml
+
+  # Rate Limiting Plugin with Redis Backend
+  - !include ./plugins/rate-limiting.yml
+
+  # Import service-specific plugins
+  - !include ./routes/core-service.yml#plugins
