@@ -1,0 +1,139 @@
+# Human Tasks:
+# 1. Verify core-service host and port match deployment configuration
+# 2. Ensure Redis SSL certificates are properly configured for rate limiting
+# 3. Validate Auth0 JWT configuration matches tenant settings
+# 4. Test CORS configuration with all production domains
+# 5. Monitor service timeouts and adjust if needed based on performance metrics
+
+# Kong API Gateway Route Configuration v3.4.x
+# Core Service Integration
+
+# Requirements Addressed:
+# - API Gateway Configuration (4.2.1): Implements Kong routing and security for core service
+# - API Architecture (5.3.1): Defines REST API routes with JWT auth and rate limiting
+# - Service Integration (5.3.3): Configures routing between API Gateway and Core Service
+
+# Service definition for core business logic
+services:
+  - name: core-service
+    url: http://core-service:8080
+    protocol: http
+    connect_timeout: 60000  # 60 seconds
+    write_timeout: 60000    # 60 seconds
+    read_timeout: 60000     # 60 seconds
+    retries: 5             # Number of retry attempts
+
+# Route definitions for core service endpoints
+routes:
+  - name: applications
+    paths:
+      - /v1/applications
+    methods:
+      - GET
+      - POST
+      - PUT
+      - DELETE
+    strip_path: false      # Preserve full path when proxying
+    preserve_host: true    # Keep original host header
+    service: core-service
+
+  - name: merchants
+    paths:
+      - /v1/merchants
+    methods:
+      - GET
+      - POST
+      - PUT
+      - DELETE
+    strip_path: false
+    preserve_host: true
+    service: core-service
+
+  - name: documents
+    paths:
+      - /v1/documents
+    methods:
+      - GET
+      - POST
+      - PUT
+      - DELETE
+    strip_path: false
+    preserve_host: true
+    service: core-service
+
+# Security and integration plugins
+plugins:
+  # JWT Authentication with Auth0 integration
+  - name: jwt
+    route: null            # Apply to all routes
+    service: core-service
+    enabled: true
+    config:
+      uri_param_names:
+        - jwt
+        - token
+      cookie_names:
+        - jwt
+      header_names:
+        - Authorization
+      claims_to_verify:
+        - exp
+        - nbf
+        - iss
+        - sub
+        - aud
+      maximum_expiration: 3600
+      auth0_issuer: https://dollarfunding.auth0.com/
+      auth0_supported_algs:
+        - RS256
+
+  # Rate limiting configuration
+  - name: rate-limiting
+    route: null
+    service: core-service
+    enabled: true
+    config:
+      minute: 50          # 50 requests per minute burst limit
+      hour: 1000         # 1000 requests per hour
+      policy: redis
+      limit_by: consumer
+      redis:
+        host: redis
+        port: 6379
+        timeout: 2000
+        database: 0
+        ssl: true
+        ssl_verify: true
+
+  # CORS configuration for secure cross-origin requests
+  - name: cors
+    route: null
+    service: core-service
+    enabled: true
+    config:
+      origins:
+        - https://*.dollarfunding.com
+      methods:
+        - GET
+        - POST
+        - PUT
+        - DELETE
+        - OPTIONS
+        - HEAD
+      headers:
+        - Accept
+        - Accept-Version
+        - Content-Length
+        - Content-MD5
+        - Content-Type
+        - Date
+        - Authorization
+        - X-Api-Key
+        - X-Request-ID
+      exposed_headers:
+        - X-Auth-Token
+        - X-Request-ID
+        - X-Rate-Limit-Remaining
+        - X-Rate-Limit-Reset
+      credentials: true
+      max_age: 3600
