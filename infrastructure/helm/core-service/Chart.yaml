@@ -1,0 +1,35 @@
+# Helm Chart for Core Service
+# Chart version: 1.0.0
+# Bitnami PostgreSQL Chart version: 12.5.3
+# Metrics Server Chart version: 3.8.4
+
+# Addresses requirements:
+# - Core Service Deployment (4.2.1 Core Components)
+# - Infrastructure Requirements (8.3 CONTAINERIZATION)
+
+apiVersion: v2
+name: core-service
+version: 1.0.0
+description: Helm chart for Dollar Funding MCA Application Processing System Core Service
+type: application
+appVersion: "1.0.0"
+
+keywords:
+  - mca
+  - core-service
+  - spring-boot
+
+maintainers:
+  - name: Dollar Funding DevOps Team
+    email: devops@dollarfunding.com
+
+# Chart Dependencies
+dependencies:
+  - name: postgresql
+    version: 12.5.3
+    repository: https://charts.bitnami.com/bitnami
+    condition: postgresql.enabled
+  - name: metrics-server
+    version: 3.8.4
+    repository: https://kubernetes-sigs.github.io/metrics-server/
+    condition: metrics-server.enabled
