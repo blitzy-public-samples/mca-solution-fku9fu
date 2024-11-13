@@ -1,0 +1,60 @@
+# Human Tasks:
+# 1. Configure Auth0 tenant and obtain issuer URL
+# 2. Set up Auth0 application and obtain client credentials
+# 3. Configure JWKS endpoint in Auth0
+# 4. Verify rate limiting settings match infrastructure capacity
+# 5. Test JWT token validation with Auth0 integration
+
+# Kong JWT Plugin Configuration v3.4.x
+# Auth0 Integration v2.48.x
+
+# Requirements Addressed:
+# - API Authentication (4.4.2): Implements secure API access through JWT authentication layer
+# - API Security (5.3.1): REST over HTTPS with JWT with OAuth 2.0 authentication
+# - Authentication Methods (7.1.1): JWT Bearer Tokens for API Access with 1-hour token expiry
+# - Security Controls (7.3.2): Implements WAF, rate limiting and traffic filtering for API security
+
+name: jwt
+config:
+  # Token location configuration
+  uri_param_names:
+    - jwt
+    - token
+  cookie_names:
+    - jwt
+  header_names:
+    - Authorization
+
+  # JWT validation configuration
+  key_claim_name: kid
+  secret_is_base64: false
+  claims_to_verify:
+    - exp
+    - nbf
+    - iss
+    - sub
+    - aud
+
+  # Token expiration settings
+  maximum_expiration: 3600  # 1 hour maximum token lifetime
+
+  # Authentication bypass settings
+  anonymous: null  # No anonymous access allowed
+  run_on_preflight: true  # Validate tokens on OPTIONS requests
+
+  # Auth0 integration settings
+  auth0_issuer: https://dollarfunding.auth0.com/
+  auth0_supported_algs:
+    - RS256  # Only allow RS256 signing algorithm
+
+  # JWT validation settings
+  verify_claims: true  # Enforce claim verification
+
+  # Security rotation settings
+  jwt_secret_rotation: true
+  jwt_secret_rotation_interval: 90  # 90-day rotation interval
+
+  # Rate limiting configuration
+  rate_limiting:
+    second: 10    # Maximum 10 requests per second
+    hour: 1000    # Maximum 1000 requests per hour
