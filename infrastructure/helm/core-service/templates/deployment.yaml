@@ -1,0 +1,106 @@
+# Human Tasks:
+# 1. Ensure container registry credentials are configured (regcred)
+# 2. Verify PostgreSQL secret 'core-service-db-credentials' exists
+# 3. Configure TLS certificate for 'core-service-tls' secret
+# 4. Set up Prometheus monitoring stack if not already deployed
+
+# Addresses requirement: Core Service Deployment (4.2.1 Core Components)
+# Kubernetes deployment manifest for Java Spring Boot service
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ include "core-service.fullname" . }}
+  labels:
+    {{- include "core-service.labels" . | nindent 4 }}
+spec:
+  # Addresses requirement: High Availability (8.1 DEPLOYMENT ENVIRONMENT)
+  replicas: {{ .Values.replicaCount }}
+  selector:
+    matchLabels:
+      {{- include "core-service.selectorLabels" . | nindent 6 }}
+  # Configure zero-downtime rolling updates
+  strategy:
+    type: RollingUpdate
+    rollingUpdate:
+      maxSurge: 1
+      maxUnavailable: 0
+  template:
+    metadata:
+      labels:
+        {{- include "core-service.selectorLabels" . | nindent 8 }}
+      # Addresses requirement: Service Monitoring (4.4.1 Monitoring and Observability)
+      annotations:
+        prometheus.io/scrape: "{{ .Values.metrics.enabled }}"
+        prometheus.io/path: "/actuator/prometheus"
+        prometheus.io/port: "8080"
+    spec:
+      # Addresses requirement: High Availability (8.1 DEPLOYMENT ENVIRONMENT)
+      # Configure pod anti-affinity for high availability
+      affinity:
+        {{- toYaml .Values.affinity | nindent 8 }}
+      
+      # Configure image pull secrets if using private registry
+      {{- with .Values.image.imagePullSecrets }}
+      imagePullSecrets:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      
+      containers:
+        - name: {{ .Chart.Name }}
+          image: "{{ .Values.image.repository }}:{{ .Values.image.tag }}"
+          imagePullPolicy: {{ .Values.image.pullPolicy }}
+          
+          # Configure container ports
+          ports:
+            - name: http
+              containerPort: 8080
+              protocol: TCP
+          
+          # Addresses requirement: Resource Management (8.3.2 Container Specifications)
+          # Set resource requests and limits
+          resources:
+            {{- toYaml .Values.resources | nindent 12 }}
+          
+          # Configure environment variables
+          env:
+            {{- toYaml .Values.env | nindent 12 }}
+          
+          # Configure health check probes
+          livenessProbe:
+            {{- toYaml .Values.livenessProbe | nindent 12 }}
+          
+          readinessProbe:
+            {{- toYaml .Values.readinessProbe | nindent 12 }}
+          
+          # Configure security context
+          securityContext:
+            allowPrivilegeEscalation: false
+            runAsNonRoot: true
+            runAsUser: 1000
+            readOnlyRootFilesystem: true
+          
+          # Configure volume mounts for temporary storage
+          volumeMounts:
+            - name: tmp
+              mountPath: /tmp
+            - name: app-logs
+              mountPath: /app/logs
+      
+      # Configure volumes
+      volumes:
+        - name: tmp
+          emptyDir: {}
+        - name: app-logs
+          emptyDir: {}
+      
+      # Configure termination grace period
+      terminationGracePeriodSeconds: 60
+      
+      # Configure DNS policy
+      dnsPolicy: ClusterFirst
+      
+      # Enable service account
+      serviceAccountName: {{ include "core-service.serviceAccountName" . }}
+      
+      # Configure restart policy
+      restartPolicy: Always
