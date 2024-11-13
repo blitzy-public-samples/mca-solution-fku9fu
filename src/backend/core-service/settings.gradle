@@ -1,0 +1,47 @@
+/*
+ * Human Tasks:
+ * 1. Ensure Java 17 LTS is installed and configured as the default JDK
+ * 2. Verify Gradle 8.2.0 is installed (as specified in build.gradle wrapper configuration)
+ * 3. Configure IDE to use the project's Gradle settings
+ */
+
+// Requirement: Core Service Technology Stack (6. TECHNOLOGY STACK/6.1 PROGRAMMING LANGUAGES)
+// Configures root project name for the core service that uses Java 17 LTS
+rootProject.name = 'core-service'
+
+// Requirement: Core Service Framework (6. TECHNOLOGY STACK/6.2.1 Backend Frameworks)
+// Enables Spring Boot 3.1.x project structure and configuration
+enableFeaturePreview('TYPESAFE_PROJECT_ACCESSORS')
+
+// Configure Gradle build settings for optimal performance
+gradle.startParameter.showStacktrace = ShowStacktrace.ALWAYS
+gradle.startParameter.warningMode = WarningMode.ALL
+
+// Enable build scan for better build insights and debugging
+gradleEnterprise {
+    buildScan {
+        termsOfServiceUrl = 'https://gradle.com/terms-of-service'
+        termsOfServiceAgree = 'yes'
+    }
+}
+
+// Configure dependency verification for security
+dependencyResolutionManagement {
+    repositoriesMode.set(RepositoriesMode.FAIL_ON_PROJECT_REPOS)
+    repositories {
+        mavenCentral()
+        gradlePluginPortal()
+    }
+}
+
+// Configure build cache for improved build performance
+buildCache {
+    local {
+        enabled = true
+        directory = new File(rootDir, 'build-cache')
+        removeUnusedEntriesAfterDays = 30
+    }
+}
+
+// Include build configuration from build.gradle
+includeBuild('.')
