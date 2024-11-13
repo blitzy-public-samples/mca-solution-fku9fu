@@ -1,0 +1,88 @@
+# Human Tasks:
+# 1. Verify document-service host and port match deployment configuration
+# 2. Ensure rate limits align with document processing capacity
+# 3. Monitor API usage patterns and adjust rate limits if needed
+# 4. Validate all routes are accessible with proper JWT scopes
+
+# Kong API Gateway Route Configuration v3.4.x
+# Requirements Addressed:
+# - Document Processing (2. SYSTEM OVERVIEW): AI-powered classification and secure storage
+# - Data Extraction (2. SYSTEM OVERVIEW): Advanced OCR with handwritten text support
+# - API Architecture (5.3.1): REST over HTTPS with JWT authentication and rate limiting
+
+services:
+  - name: document-service
+    url: http://document-service:8000  # Internal service endpoint
+    
+    # Route definitions for document processing endpoints
+    routes:
+      # Document upload endpoint
+      - name: document-upload
+        paths:
+          - /v1/documents
+        methods:
+          - POST
+        strip_path: false
+        preserve_host: true
+        
+      # Document processing endpoint
+      - name: document-process
+        paths:
+          - /v1/documents/{id}/process
+        methods:
+          - POST
+        strip_path: false
+        preserve_host: true
+        
+      # Document classification endpoint
+      - name: document-classify
+        paths:
+          - /v1/documents/{id}/classify
+        methods:
+          - POST
+        strip_path: false
+        preserve_host: true
+        
+      # Data extraction endpoint
+      - name: document-extract
+        paths:
+          - /v1/documents/{id}/extract
+        methods:
+          - POST
+        strip_path: false
+        preserve_host: true
+        
+      # Single document retrieval endpoint
+      - name: document-get
+        paths:
+          - /v1/documents/{id}
+        methods:
+          - GET
+        strip_path: false
+        preserve_host: true
+        
+      # Document listing endpoint
+      - name: documents-list
+        paths:
+          - /v1/documents
+        methods:
+          - GET
+        strip_path: false
+        preserve_host: true
+
+    # Security and traffic management plugins
+    plugins:
+      # CORS configuration for secure cross-origin access
+      - name: cors
+        config:
+          $ref: ../plugins/cors.yml#/config
+
+      # JWT authentication with Auth0 integration
+      - name: jwt
+        config:
+          $ref: ../plugins/jwt.yml#/config
+
+      # Rate limiting with Redis backend
+      - name: rate-limiting
+        config:
+          $ref: ../plugins/rate-limiting.yml#/config
