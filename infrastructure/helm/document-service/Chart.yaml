@@ -1,0 +1,24 @@
+# Helm chart for Document Service deployment
+# Addresses requirements:
+# - Document Processing Service (4. SYSTEM ARCHITECTURE/4.2.1 Core Components)
+# - Container Orchestration (6. TECHNOLOGY STACK/6.5 CI/CD Pipeline/6.5.2 Pipeline Stages)
+# - High Availability (2. SYSTEM OVERVIEW/Success Criteria)
+
+apiVersion: v2
+name: document-service
+description: A Helm chart for deploying the MCA Document Processing Service with OCR capabilities and high availability
+type: application
+version: 1.0.0
+appVersion: 1.0.0
+
+# Chart Dependencies
+# Using Bitnami charts for stable, production-ready dependencies
+dependencies:
+  - name: redis
+    version: 17.11.0
+    repository: https://charts.bitnami.com/bitnami
+    condition: redis.enabled
+  - name: rabbitmq
+    version: 12.6.1
+    repository: https://charts.bitnami.com/bitnami
+    condition: rabbitmq.enabled
