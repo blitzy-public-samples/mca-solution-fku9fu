@@ -1,0 +1,102 @@
+# Human Tasks:
+# 1. Configure AWS ECR registry URL in CI/CD pipeline
+# 2. Set up HashiCorp Vault with appropriate secrets path: mca/data/core-service
+# 3. Create core-service ServiceAccount with appropriate Vault authentication role
+# 4. Configure container image versioning strategy for IMAGE_TAG
+
+# Addresses High Availability requirement through multi-replica deployment and auto-scaling
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: core-service
+  namespace: mca-system
+  labels:
+    app: core-service
+    component: backend
+spec:
+  # Ensures high availability with 3 replicas across multiple availability zones
+  replicas: 3
+  selector:
+    matchLabels:
+      app: core-service
+  template:
+    metadata:
+      labels:
+        app: core-service
+      # Vault agent injection configuration for secure secrets management
+      annotations:
+        vault.hashicorp.com/agent-inject: "true"
+        vault.hashicorp.com/agent-inject-status: "update"
+        vault.hashicorp.com/role: "core-service"
+        vault.hashicorp.com/agent-inject-secret-app-config: "mca/data/core-service"
+        vault.hashicorp.com/agent-inject-template-app-config: "{{ with secret \"mca/data/core-service\" }}{{ .Data.data | toJSON }}{{ end }}"
+    spec:
+      serviceAccountName: core-service
+      containers:
+        - name: core-service
+          image: ${ECR_REGISTRY}/core-service:${IMAGE_TAG}
+          ports:
+            - containerPort: 8080
+              name: http
+              protocol: TCP
+          # Resource management optimized for Java Spring Boot services
+          resources:
+            requests:
+              cpu: "2"
+              memory: "4Gi"
+            limits:
+              cpu: "4"
+              memory: "8Gi"
+          # Health monitoring through Spring Boot Actuator endpoints
+          livenessProbe:
+            httpGet:
+              path: /actuator/health
+              port: 8080
+            initialDelaySeconds: 60
+            periodSeconds: 15
+            timeoutSeconds: 5
+            failureThreshold: 3
+          readinessProbe:
+            httpGet:
+              path: /actuator/health
+              port: 8080
+            initialDelaySeconds: 30
+            periodSeconds: 10
+            timeoutSeconds: 3
+            failureThreshold: 3
+          env:
+            - name: SPRING_PROFILES_ACTIVE
+              value: "production"
+            - name: SERVER_PORT
+              value: "8080"
+            - name: POD_NAME
+              valueFrom:
+                fieldRef:
+                  fieldPath: metadata.name
+            - name: POD_NAMESPACE
+              valueFrom:
+                fieldRef:
+                  fieldPath: metadata.namespace
+          volumeMounts:
+            - name: vault-secrets
+              mountPath: /vault/secrets
+              readOnly: true
+
+---
+# Internal service configuration for core-service
+apiVersion: v1
+kind: Service
+metadata:
+  name: core-service
+  namespace: mca-system
+  labels:
+    app: core-service
+spec:
+  type: ClusterIP
+  ports:
+    - port: 8080
+      targetPort: 8080
+      protocol: TCP
+      name: http
+  selector:
+    app: core-service
