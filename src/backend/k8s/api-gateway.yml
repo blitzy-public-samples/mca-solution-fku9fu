@@ -1,0 +1,152 @@
+# Human Tasks:
+# 1. Verify LoadBalancer service type is supported in target environment
+# 2. Configure external load balancer SSL termination if required
+# 3. Review and adjust resource limits based on production load testing
+# 4. Configure network policies for Kong pods
+# 5. Set up monitoring and alerting for Kong metrics
+# 6. Verify SSL certificate secret provisioning
+
+# Kubernetes API Version: 1.27.x
+# Kong Version: 3.4.x
+
+---
+# Addresses requirement: API Gateway Configuration (4.2.1)
+# Implements Kong configuration for routing and security
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: kong-config
+  namespace: mca-system
+  labels:
+    app: kong
+    component: api-gateway
+data:
+  kong.conf: |
+    proxy_listen = 0.0.0.0:8000 ssl
+    admin_listen = 0.0.0.0:8001
+    ssl_cert = /etc/kong/ssl/tls.crt
+    ssl_cert_key = /etc/kong/ssl/tls.key
+    database = off
+    declarative_config = /kong/declarative/kong.yml
+    proxy_access_log = /dev/stdout
+    proxy_error_log = /dev/stderr
+    admin_access_log = /dev/stdout
+    admin_error_log = /dev/stderr
+    status_listen = 0.0.0.0:8100
+
+---
+# Addresses requirement: High Availability (2. SYSTEM OVERVIEW/Success Criteria)
+# Implements LoadBalancer service for high availability
+apiVersion: v1
+kind: Service
+metadata:
+  name: kong-proxy
+  namespace: mca-system
+  labels:
+    app: kong
+    component: api-gateway
+spec:
+  type: LoadBalancer
+  ports:
+    - port: 443
+      targetPort: 8443
+      protocol: TCP
+      name: proxy-ssl
+    - port: 80
+      targetPort: 8000
+      protocol: TCP
+      name: proxy
+  selector:
+    app: kong
+
+---
+# Addresses requirements:
+# - Security Architecture (4.4.2)
+# - High Availability (2. SYSTEM OVERVIEW/Success Criteria)
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: kong
+  namespace: mca-system
+  labels:
+    app: kong
+    component: api-gateway
+spec:
+  replicas: 3
+  strategy:
+    type: RollingUpdate
+    rollingUpdate:
+      maxSurge: 1
+      maxUnavailable: 0
+  selector:
+    matchLabels:
+      app: kong
+  template:
+    metadata:
+      labels:
+        app: kong
+    spec:
+      containers:
+        - name: kong
+          image: kong:3.4.x
+          ports:
+            - containerPort: 8000
+              name: proxy
+            - containerPort: 8443
+              name: proxy-ssl
+          resources:
+            requests:
+              cpu: "500m"
+              memory: "512Mi"
+            limits:
+              cpu: "2"
+              memory: "2Gi"
+          livenessProbe:
+            httpGet:
+              path: /status
+              port: 8000
+            initialDelaySeconds: 30
+            timeoutSeconds: 5
+          readinessProbe:
+            httpGet:
+              path: /status
+              port: 8000
+            initialDelaySeconds: 30
+            timeoutSeconds: 5
+          volumeMounts:
+            - name: kong-config
+              mountPath: /etc/kong
+              readOnly: true
+            - name: ssl
+              mountPath: /etc/kong/ssl
+              readOnly: true
+      volumes:
+        - name: kong-config
+          configMap:
+            name: kong-config
+        - name: ssl
+          secret:
+            secretName: kong-ssl
+
+---
+# Addresses requirement: High Availability (2. SYSTEM OVERVIEW/Success Criteria)
+# Implements auto-scaling for 99.9% uptime requirement
+apiVersion: autoscaling/v2
+kind: HorizontalPodAutoscaler
+metadata:
+  name: kong-hpa
+  namespace: mca-system
+spec:
+  scaleTargetRef:
+    apiVersion: apps/v1
+    kind: Deployment
+    name: kong
+  minReplicas: 3
+  maxReplicas: 10
+  metrics:
+    - type: Resource
+      resource:
+        name: cpu
+        target:
+          type: Utilization
+          averageUtilization: 70
