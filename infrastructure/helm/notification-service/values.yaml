@@ -1,0 +1,63 @@
+# Addresses requirement: System Availability (2. SYSTEM OVERVIEW/Success Criteria)
+# Configure high availability with multiple replicas
+replicaCount: 3
+
+# Addresses requirement: Container Strategy (8. INFRASTRUCTURE/8.3 Containerization)
+# Container image configuration
+image:
+  repository: notification-service
+  tag: latest
+  pullPolicy: Always
+
+# Addresses requirement: Integration Layer (2. SYSTEM OVERVIEW/High-Level Description)
+# Service configuration for webhook notifications
+service:
+  type: ClusterIP
+  port: 3000
+
+# Addresses requirement: Container Strategy (8. INFRASTRUCTURE/8.3 Containerization)
+# Resource limits and requests for container
+resources:
+  limits:
+    cpu: 500m
+    memory: 512Mi
+  requests:
+    cpu: 200m
+    memory: 256Mi
+
+# Addresses requirement: Integration Layer (2. SYSTEM OVERVIEW/High-Level Description)
+# Webhook delivery configuration
+webhook:
+  timeout: 30000    # Webhook request timeout in milliseconds
+  maxRetries: 3     # Maximum number of retry attempts
+  retryDelay: 5000  # Delay between retries in milliseconds
+
+# Addresses requirement: Deployment Architecture (4. SYSTEM ARCHITECTURE/4.5 Deployment Architecture)
+# Node selection and scheduling configuration
+nodeSelector:
+  kubernetes.io/os: linux
+
+# Addresses requirement: Deployment Architecture (4. SYSTEM ARCHITECTURE/4.5 Deployment Architecture)
+# Multi-AZ pod distribution configuration
+affinity:
+  podAntiAffinity:
+    preferredDuringSchedulingIgnoredDuringExecution:
+    - weight: 100
+      podAffinityTerm:
+        labelSelector:
+          matchExpressions:
+          - key: app.kubernetes.io/name
+            operator: In
+            values:
+            - notification-service
+        topologyKey: topology.kubernetes.io/zone
+
+# Pod scheduling tolerations
+tolerations: []
+
+# Addresses requirement: System Availability (2. SYSTEM OVERVIEW/Success Criteria)
+# Pod annotations for monitoring and observability
+podAnnotations:
+  prometheus.io/scrape: "true"
+  prometheus.io/path: "/metrics"
+  prometheus.io/port: "3000"
